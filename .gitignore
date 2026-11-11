@@ -1,0 +1,19 @@
+# macOS
+.DS_Store
+._*
+
+# editors
+.vscode/
+.idea/
+
+# Python
+__pycache__/
+*.pyc
+tools/venv/
+
+# Big source files that are downloaded, not written by hand
+models/src/
+data/raw/
+
+# logs
+*.log
