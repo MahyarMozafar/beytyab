@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>Share card test</title>
+<link rel="stylesheet" href="../css/main.css">
+<style>html,body{height:auto;min-height:0}body{overflow:auto;background:#888}img{display:block;width:auto;max-width:100vw;max-height:100vh;margin:0 auto}</style>
+</head>
+<body>
+<!-- Draws the share card for one verse and shows it, to check the layout by eye. -->
+<img id="card" alt="کارت اشتراک" style="width:min(96vw,54vh);height:auto;max-width:none;max-height:none">
+<script type="module">
+import { shareVerse } from '../js/share.js';
+const click = HTMLAnchorElement.prototype.click;
+HTMLAnchorElement.prototype.click = function () { document.getElementById('card').src = this.href; };
+Object.defineProperty(navigator, 'canShare', { value: () => false, configurable: true });
+await shareVerse({
+  poet: 'حافظ', book: 'غزلیات', title: 'غزل شماره ۴۷۳',
+  m1: 'وقت را غنیمت دان آن قدر که بتوانی',
+  m2: 'حاصل از حیات ای جان این دم است تا دانی',
+});
+HTMLAnchorElement.prototype.click = click;
+window.cardReady = true;
+</script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+{
+  "name": "بیت‌یاب",
+  "short_name": "بیت‌یاب",
+  "description": "جست‌وجوی معنایی در شعر حافظ، سعدی و مولانا",
+  "lang": "fa",
+  "dir": "rtl",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#efe4cb",
+  "theme_color": "#efe4cb",
+  "icons": [{ "src": "assets/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}
