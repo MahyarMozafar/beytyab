@@ -1,0 +1,6 @@
+{
+  "name": "beytyab",
+  "private": true,
+  "type": "module",
+  "description": "Search Persian poetry by meaning, in the browser"
+}

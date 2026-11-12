@@ -1,0 +1,41 @@
+{
+ "dim": 384,
+ "scale": 0.1957325041294098,
+ "modelBytes": 34109657,
+ "tokenizerBytes": 1303253,
+ "engineBytes": 14264838,
+ "collections": [
+  {
+   "name": "hafez",
+   "poet": "hafez",
+   "poetName": "حافظ",
+   "book": "غزلیات",
+   "count": 4193,
+   "bytes": 3174188
+  },
+  {
+   "name": "saadi-ghazal",
+   "poet": "saadi",
+   "poetName": "سعدی",
+   "book": "دیوان اشعار",
+   "count": 7112,
+   "bytes": 5813450
+  },
+  {
+   "name": "saadi-boostan",
+   "poet": "saadi",
+   "poetName": "سعدی",
+   "book": "بوستان",
+   "count": 4064,
+   "bytes": 2798374
+  },
+  {
+   "name": "moulavi-masnavi",
+   "poet": "moulavi",
+   "poetName": "مولانا",
+   "book": "مثنوی معنوی",
+   "count": 25637,
+   "bytes": 18302039
+  }
+ ]
+}

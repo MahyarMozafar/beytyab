@@ -4,7 +4,19 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import re
+
 from normalize import normalize
+
+# The source marks its machine-written summaries with a label such as
+# "هوش مصنوعی:". The label is not part of the meaning, so it is removed.
+SUMMARY_LABEL = re.compile(r"^\s*(هوش\s*م\.?صنوعی|تصحیح\s*AI|AI|معنی)\s*[:：]\s*")
+
+
+def clean_summary(text: str | None) -> str | None:
+    if not text:
+        return None
+    return SUMMARY_LABEL.sub("", text).strip() or None
 
 ROOT = Path(__file__).resolve().parent.parent
 RAW = ROOT / "data" / "raw"
@@ -43,7 +55,7 @@ def load_couplets(collection: str) -> list[dict]:
                     "n": number,
                     "m1": texts[0],
                     "m2": " ".join(texts[1:]),
-                    "summary": summary.strip() if summary else None,
+                    "summary": clean_summary(summary),
                 }
             )
     return couplets

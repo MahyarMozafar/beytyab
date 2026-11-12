@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Engine test</title>
+<style>body{font:14px/1.6 system-ui;margin:2rem;max-width:60rem}pre{white-space:pre-wrap}</style>
+</head>
+<body>
+<h1>In-browser engine test</h1>
+<p>Checks that the browser gives the same vectors and the same best couplet as Python.
+Build the cases first: <code>python tools/make_engine_cases.py</code></p>
+<pre id="log">loading…</pre>
+<script type="module">
+const log = document.getElementById('log');
+const say = (line) => { log.textContent += '\n' + line; };
+const worker = new Worker('../js/worker.js', { type: 'module' });
+const waiting = new Map();
+let nextId = 1;
+const ask = (message) => new Promise((resolve, reject) => {
+  const id = nextId++;
+  waiting.set(id, { resolve, reject });
+  worker.postMessage({ ...message, id });
+});
+let allLoaded;
+const everything = new Promise((resolve) => { allLoaded = resolve; });
+worker.onmessage = ({ data }) => {
+  if (data.type === 'progress') log.textContent = `loading… ${Math.round(100 * data.loaded / data.total)}%`;
+  else if (data.type === 'collection') { say(`loaded ${data.name}`); if (data.loaded === data.total) allLoaded(); }
+  else if (data.type === 'error' && !data.id) say('ERROR ' + data.message);
+  else if (waiting.has(data.id)) {
+    const { resolve, reject } = waiting.get(data.id);
+    waiting.delete(data.id);
+    data.type === 'error' ? reject(new Error(data.message)) : resolve(data);
+  }
+};
+worker.onerror = (e) => say('WORKER ERROR ' + e.message);
+worker.postMessage({ type: 'init' });
+await everything;
+const cases = await (await fetch('engine-cases.json')).json();
+let worstCosine = 1, sameTop = 0, totalMs = 0;
+for (const c of cases) {
+  const { vector } = await ask({ type: 'embed', text: c.text });
+  let dot = 0, a = 0, b = 0;
+  vector.forEach((x, i) => { dot += x * c.vector[i]; a += x * x; b += c.vector[i] ** 2; });
+  const cosine = dot / Math.sqrt(a * b);
+  worstCosine = Math.min(worstCosine, cosine);
+  const { results, ms } = await ask({ type: 'search', text: c.text, top: 7 });
+  totalMs += ms;
+  const ok = results[0].collection === c.collection && results[0].row === c.row;
+  if (ok) sameTop++;
+  say(`${ok ? 'ok ' : 'DIFF'} cos=${cosine.toFixed(5)} ${Math.round(ms)}ms  ${c.text}  →  ${results[0].m1} / ${results[0].m2}`);
+}
+const summary = { cases: cases.length, worstCosine, sameTop, averageMs: totalMs / cases.length };
+say('\nRESULT ' + JSON.stringify(summary));
+window.engineResult = summary;
+</script>
+</body>
+</html>

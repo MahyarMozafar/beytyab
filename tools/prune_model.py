@@ -40,7 +40,7 @@ SRC = ROOT / "models" / "src"
 OUT = ROOT / "models" / "e5-small-fa"
 TABLE = "embeddings.word_embeddings.weight_quantized"
 
-PERSIAN = re.compile(r"^▁?[؀-ۿݐ-ݿﭐ-﷿ﹰ-﻿‌‍]+$")
+PERSIAN = re.compile(r"^▁?[؀-ۿݐ-ݿﭐ-﷿ﹰ-\ufeff\u200c\u200d]+$")
 NO_LETTERS = re.compile(r"^▁?[^\w]*[\d۰-۹٠-٩]*[^\w]*$")
 SHORT_LATIN = re.compile(r"^▁?[A-Za-z]{1,3}$")
 

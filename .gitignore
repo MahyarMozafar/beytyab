@@ -18,8 +18,5 @@ data/raw/
 # logs
 *.log
 
-# Built model: added once the poem data is final
-models/e5-small-fa/
-
 # Built vectors (made by tools/embed.py)
 data/build/
