@@ -200,10 +200,9 @@ function meaningBlock(verse, extraClass = '', hidden = false) {
     <span class="meaning__label">معنی ساده</span>${esc(verse.meaning)}</div>`;
 }
 
-function verseActions(verse, narrow) {
+function verseActions(verse) {
   const marked = isMarked(verse);
-  return `<div class="acts ${narrow ? 'only-narrow' : ''}">
-    ${narrow && verse.meaning ? `<button class="btn" type="button" data-act="meaning" aria-expanded="false">معنی</button>` : ''}
+  return `<div class="acts">
     <button class="btn ${marked ? 'btn--on' : ''}" type="button" data-act="mark" aria-pressed="${marked}">${icon(marked ? 'i-mark-on' : 'i-mark')}${marked ? 'نشان شد' : 'نشان کن'}</button>
     <button class="btn" type="button" data-act="share">${icon('i-share')}کارت</button>
     <button class="btn" type="button" data-act="poem">${icon('i-book')}همهٔ شعر</button>
@@ -223,8 +222,9 @@ function resultView() {
       <p class="m1 ink">${esc(verse.m1)}</p>
       <p class="m2 ink">${esc(verse.m2)}</p>
     </div>
-    ${meaningBlock(verse, 'only-narrow', true)}
-    ${verseActions(verse, true)}
+    <div class="acts only-narrow">
+      <button class="btn" type="button" data-act="pan-side">معنی و کارت${icon('i-next')}</button>
+    </div>
     <nav class="pager" aria-label="ورق زدن">
       <button class="btn" type="button" data-act="prev" ${state.index === 0 ? 'disabled' : ''}>${icon('i-prev')}قبلی</button>
       <span class="pager__num" aria-label="صفحهٔ ${fa(state.index + 1)} از ${fa(count)}">${fa(state.index + 1)} از ${fa(count)}</span>
@@ -236,7 +236,7 @@ function resultView() {
     <p class="muted">از <b>${esc(verse.book)}</b>، ${esc(verse.title)} ·
       <a href="${esc(verse.url)}" target="_blank" rel="noopener">متن کامل در گنجور</a></p>
     <div class="rule"></div>
-    ${verseActions(verse, false)}`;
+    ${verseActions(verse)}`;
 }
 
 function niyatView() {
@@ -311,6 +311,26 @@ function writeInk() {
   }));
 }
 
+// ---------- sliding between the two pages (phones) ----------
+
+// On a phone the open book is wider than the screen. 'main' shows the right
+// page (the verse), 'side' slides over to the left page (meaning, actions).
+function setPan(page) {
+  book.dataset.pan = page;
+}
+
+// A tap on the page that is half outside the screen only slides to it.
+spread.addEventListener('click', (event) => {
+  if (isWide()) return;
+  const page = event.target.closest('.page');
+  const which = page === pageSide ? 'side' : page === pageMain ? 'main' : null;
+  if (which && which !== book.dataset.pan) {
+    event.preventDefault();
+    event.stopPropagation();
+    setPan(which);
+  }
+}, true);
+
 // ---------- turning a page ----------
 
 function snapshot(page) {
@@ -353,37 +373,22 @@ function turn(direction, change) {
   let hold = null;
   let motion;
 
-  if (isWide()) {
-    // Two pages: the leaf carries the old page on its front and the new one on its back.
-    if (direction === 'next') {
-      front.append(oldSide);
-      back.append(snapshot(pageMain));
-      hold = element('hold', oldMain);
-      motion = { rotationY: 180 };
-    } else {
-      leaf.classList.add('leaf--right');
-      front.append(oldMain);
-      back.append(snapshot(pageSide));
-      hold = element('hold hold--left', oldSide);
-      motion = { rotationY: -180 };
-    }
-    back.querySelectorAll('.ink').forEach((node) => node.classList.remove('is-written'));
-    spread.append(hold, leaf);
-  } else if (direction === 'next') {
-    // One page: the old page swings away to the right.
-    front.append(oldMain);
-    spread.append(leaf);
-    motion = { rotationY: 105 };
-  } else {
-    // One page, going back: the earlier page swings in from the right.
-    const incoming = snapshot(pageMain);
-    incoming.querySelectorAll('.ink').forEach((node) => node.classList.remove('is-written'));
-    front.append(incoming);
+  // The leaf carries the old page on its front and the new one on its back.
+  if (direction === 'next') {
+    front.append(oldSide);
+    back.append(snapshot(pageMain));
     hold = element('hold', oldMain);
-    spread.append(hold, leaf);
-    gsap.set(leaf, { rotationY: 105 });
-    motion = { rotationY: 0 };
+    motion = { rotationY: 180 };
+  } else {
+    leaf.classList.add('leaf--right');
+    front.append(oldMain);
+    back.append(snapshot(pageSide));
+    hold = element('hold hold--left', oldSide);
+    motion = { rotationY: -180 };
   }
+  back.querySelectorAll('.ink').forEach((node) => node.classList.remove('is-written'));
+  spread.append(hold, leaf);
+  setPan('main'); // on a phone, slide back to the page where the verse lands
 
   return new Promise((resolve) => {
     const timeline = gsap.timeline({
@@ -395,11 +400,10 @@ function turn(direction, change) {
         resolve();
       },
     });
-    const duration = isWide() ? 1.15 : 0.85;
+    const duration = 1.15;
     timeline.to(leaf, { ...motion, duration, ease: 'power2.inOut' }, 0);
     timeline.to(shade, { opacity: 0.7, duration: duration / 2, ease: 'sine.in' }, 0);
     timeline.to(shade, { opacity: 0, duration: duration / 2, ease: 'sine.out' }, duration / 2);
-    if (!isWide() && direction === 'next') timeline.to(leaf, { opacity: 0, duration: 0.25 }, duration - 0.25);
   });
 }
 
@@ -409,13 +413,16 @@ let coverTimeline = null;
 
 function coverMotion(opening, duration) {
   const wide = isWide();
-  const closed = { rotationY: 0, left: wide ? '25%' : '0%', opacity: 1 };
-  const opened = { rotationY: wide ? 180 : 108, left: '0%' };
+  // Closed, the cover sits in the middle. Open, it has swung over the spine.
+  // On a phone the open book is wider than the screen, so the left page
+  // starts outside the screen (-60%).
+  const closed = { rotationY: 0, left: wide ? '25%' : '10%', opacity: 1 };
+  const opened = { rotationY: 180, left: wide ? '0%' : '-60%' };
   const timeline = gsap.timeline();
   if (opening) {
     timeline.fromTo(cover, closed, { ...opened, duration, ease: 'power2.inOut' }, 0);
     timeline.fromTo(spread, { opacity: 0 }, { opacity: 1, duration: duration * 0.45, ease: 'sine.out' }, duration * 0.1);
-    timeline.to(cover, { opacity: 0, duration: 0.3, ease: 'sine.out' }, duration - (wide ? 0.05 : 0.3));
+    timeline.to(cover, { opacity: 0, duration: 0.3, ease: 'sine.out' }, duration - 0.05);
   } else {
     timeline.fromTo(cover, { ...opened, opacity: 0 }, { ...closed, duration, ease: 'power2.inOut' }, 0);
     timeline.to(cover, { opacity: 1, duration: 0.2 }, 0);
@@ -494,6 +501,7 @@ async function runSearch(text) {
 async function openFal() {
   const { poem } = await ask({ type: 'randomPoem', collection: 'hafez' });
   if (!poem) return say('غزل‌های حافظ هنوز آماده نیست');
+  setPan('main');
   await closeBook();
   state.poem = poem;
   state.poemIsFal = true;
@@ -561,13 +569,7 @@ spread.addEventListener('click', (event) => {
     case 'next': return step(1);
     case 'prev': return step(-1);
     case 'home': return goHome();
-    case 'meaning': {
-      const block = mainBody.querySelector('.meaning');
-      block.hidden = !block.hidden;
-      button.setAttribute('aria-expanded', String(!block.hidden));
-      if (!block.hidden) block.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-      return;
-    }
+    case 'pan-side': return setPan('side');
     case 'mark': {
       toggleMark(verse);
       const marked = isMarked(verse);
@@ -631,7 +633,13 @@ spread.addEventListener('touchend', (event) => {
   const dy = touch.clientY - touchStart.y;
   touchStart = null;
   if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
-  step(dx > 0 ? 1 : -1); // dragging the page to the right turns forward
+  const forward = dx > 0; // dragging the page to the right moves forward
+  if (!isWide()) {
+    // Phones: first slide to the other page, then turn the page.
+    if (forward && book.dataset.pan !== 'side') return setPan('side');
+    if (!forward && book.dataset.pan === 'side') return setPan('main');
+  }
+  step(forward ? 1 : -1);
 }, { passive: true });
 
 // ---------- toolbar ----------
@@ -686,6 +694,7 @@ function listen() {
 
 // ---------- start ----------
 
+setPan('main');
 setSound(store('beytyab.sound') === true);
 showSound();
 showMarkCount();

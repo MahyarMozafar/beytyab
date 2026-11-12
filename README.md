@@ -26,6 +26,10 @@ corners and verses in nastaliq. The book is drawn in 3D: it is tilted, it
 has stacks of sheets on both sides and it opens in the middle. Each result
 is one page, and pages turn like real paper.
 
+On a phone the open book is wider than the screen, so the pages keep
+their full size. The screen shows one page and a part of the other, and a
+swipe or a tap slides the book sideways.
+
 Extras: a share card (1080 × 1920 picture of the verse), Fal-e Hafez,
 bookmarks kept on the device, an optional paper sound, and speaking
 instead of typing where the browser supports it.

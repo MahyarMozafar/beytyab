@@ -37,7 +37,7 @@
 
 *, *::before, *::after { box-sizing: border-box; }
 
-html { height: 100%; }
+html { height: 100%; overflow: hidden; }
 body {
   margin: 0;
   min-height: 100%;
@@ -72,6 +72,9 @@ svg.defs { position: absolute; }
     radial-gradient(120% 90% at 50% 40%, #f6edd8 0%, var(--desk) 60%, #e7d9b9 100%);
   perspective: 2200px;
   perspective-origin: 50% 20%;
+  /* the open book is wider than a phone screen; nothing may widen the page */
+  overflow: hidden;
+  width: 100%;
 }
 
 .tools {
@@ -767,6 +770,77 @@ svg.defs { position: absolute; }
   .verse p { font-size: clamp(1.5rem, 1rem + 1.25vw, 2.1rem); }
   .verse--long p { font-size: clamp(1.25rem, .9rem + 1vw, 1.75rem); }
   .medallion { height: min(44vh, 330px); }
+}
+
+/* ---------- phones: the open book is wider than the screen ----------
+   Both pages are full size. The screen shows one page and a part of the
+   other; a swipe or a tap slides the book sideways. */
+
+@media not all and (min-width: 900px) and (min-height: 560px) {
+  .book { width: min(calc(100% - 24px), 460px); margin: 6px 12px 34px; }
+
+  .spread {
+    inset: 0 0 0 auto;
+    width: 160%;
+    grid-template-columns: 1fr 1fr;
+    padding-right: 0;
+    transition: transform .6s cubic-bezier(.4, 0, .2, 1);
+  }
+  .book[data-pan='side'] .spread { transform: translateX(37.5%); }
+  .peek { display: none; }
+  .boards { inset: -9px -14px -24px; }
+
+  .page--side { display: block; border-radius: 6px 0 0 6px; }
+  .page--main { border-radius: 0 6px 6px 0; box-shadow: var(--paper-inset), var(--sheets-right); }
+  .page--main::after { background: linear-gradient(90deg, rgba(60, 35, 10, .3), rgba(90, 60, 20, .08) 8%, transparent 18%, transparent 90%, rgba(255, 252, 240, .3)); }
+  .page--side::after { background: linear-gradient(270deg, rgba(60, 35, 10, .3), rgba(90, 60, 20, .08) 8%, transparent 18%, transparent 90%, rgba(255, 252, 240, .3)); }
+  /* the page you are not reading is a little darker, and a tap brings it over */
+  .page { transition: filter .6s ease; }
+  .book[data-pan='main'] .page--side,
+  .book[data-pan='side'] .page--main { filter: brightness(.93); cursor: pointer; }
+
+  .spine {
+    display: block;
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    width: 44px;
+    transform: translateX(-50%);
+    background: linear-gradient(90deg, transparent, rgba(90, 60, 20, .16) 42%, rgba(60, 35, 10, .34) 50%, rgba(90, 60, 20, .16) 58%, transparent);
+    pointer-events: none;
+    z-index: 2;
+  }
+
+  .page__frame { inset: 8px; border-width: 7px; }
+  .page__body { inset: 20px; padding: 14px 6px 8px; }
+  .page--main .page__corner--a,
+  .page--side .page__corner--b { display: none; }
+  .page__corner { width: 76px; height: 76px; opacity: .5; left: 20px; bottom: 20px; }
+  .page__corner--b { left: auto; bottom: auto; right: 20px; top: 20px; opacity: .3; }
+  .page--side .page__body { padding-bottom: 96px; }
+
+  .cover { inset: 0 auto 0 0; width: 80%; }
+  .book[data-state='closed'] .cover { left: 10%; }
+  .leaf { inset: 0 auto 0 0; width: 50%; }
+  .leaf--right { inset: 0 0 0 auto; transform-origin: left center; }
+  .hold { inset: 0 0 0 auto; width: 50%; }
+  .hold--left { inset: 0 auto 0 0; }
+  .leaf--right .page, .hold:not(.hold--left) .page { border-radius: 0 6px 6px 0; }
+
+  .verse p { font-size: 1.16rem; }
+  .verse--long p { font-size: 1rem; }
+  .verse .m1 { padding-left: 0; }
+  .verse .m2 { padding-right: 0; }
+  .sarlowh { margin-inline: 0; }
+  .sarlowh__title { font-size: 1.35rem; }
+  .ask__input { font-size: .98rem; }
+  .ask__actions .btn { flex: 1 1 100%; }
+  .acts .btn, .pager .btn { padding: 4px 11px; font-size: .82rem; }
+  .how li { font-size: .86rem; }
+  .cover__lachak { width: 52px; height: 52px; }
+  .medallion { height: min(40vh, 300px); }
+  .medallion__title { font-size: clamp(1.7rem, 8vw, 2.5rem); }
 }
 
 @media (max-height: 640px) {
