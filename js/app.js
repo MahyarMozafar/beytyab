@@ -22,6 +22,9 @@ const calmQuery = matchMedia('(prefers-reduced-motion: reduce)');
 const isWide = () => wideQuery.matches;
 const isCalm = () => calmQuery.matches;
 
+// How many verses one search brings: one verse on each page.
+const RESULT_PAGES = 12;
+
 const EXAMPLES = [
   'دلم برای کسی تنگ شده',
   'امیدوارم روزهای سخت تمام شود',
@@ -555,7 +558,7 @@ async function runSearch(text) {
   const go = $('#go');
   if (go) { go.disabled = true; go.textContent = 'در حال گشتن…'; }
   try {
-    const { results } = await ask({ type: 'search', text: query, top: 7 });
+    const { results } = await ask({ type: 'search', text: query, top: RESULT_PAGES });
     if (!results.length) throw new Error('empty');
     await turn('next', () => {
       state.query = query;
