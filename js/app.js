@@ -222,9 +222,6 @@ function resultView() {
       <p class="m1 ink">${esc(verse.m1)}</p>
       <p class="m2 ink">${esc(verse.m2)}</p>
     </div>
-    <div class="acts only-narrow">
-      <button class="btn" type="button" data-act="pan-side">معنی و کارت${icon('i-next')}</button>
-    </div>
     <nav class="pager" aria-label="ورق زدن">
       <button class="btn" type="button" data-act="prev" ${state.index === 0 ? 'disabled' : ''}>${icon('i-prev')}قبلی</button>
       <span class="pager__num" aria-label="صفحهٔ ${fa(state.index + 1)} از ${fa(count)}">${fa(state.index + 1)} از ${fa(count)}</span>
@@ -311,25 +308,36 @@ function writeInk() {
   }));
 }
 
-// ---------- sliding between the two pages (phones) ----------
+// ---------- fitting the book on small screens ----------
 
-// On a phone the open book is wider than the screen. 'main' shows the right
-// page (the verse), 'side' slides over to the left page (meaning, actions).
-function setPan(page) {
-  book.dataset.pan = page;
+// On a phone the book keeps the same two-page shape as on a wide screen. It
+// is laid out at a comfortable size and then scaled down to fit (see the
+// phone block in css/main.css). Closed, the cover is zoomed in to fill the
+// screen; it zooms out to the whole book while it opens.
+const desk = book.parentElement;
+function fitBook() {
+  const names = ['--bw', '--bh', '--bs', '--zc'];
+  if (isWide()) return names.forEach((name) => book.style.removeProperty(name));
+  const tools = $('.tools');
+  const credit = $('.credit');
+  const roomX = desk.clientWidth - 48;
+  // sideways phone: the buttons stand beside the book and take no height
+  const sideways = getComputedStyle(tools).position === 'absolute';
+  const roomY = desk.clientHeight - (sideways ? -30 : tools.offsetHeight) - (credit?.offsetHeight ?? 0) - 100;
+  const scale = Math.min(1, roomX / 540, roomY / 470);
+  let width = roomX / scale;
+  let height = roomY / scale;
+  // one page is between 0.54 and 0.8 times as wide as it is tall
+  if (width / 2 > height * 0.8) width = height * 1.6;
+  if (width / 2 < height * 0.54) height = width / 2 / 0.54;
+  const closedZoom = Math.min((roomX - 24) / (width / 2), roomY / height, 2.2) * 0.9 / scale;
+  book.style.setProperty('--bw', `${Math.round(width)}px`);
+  book.style.setProperty('--bh', `${Math.round(height)}px`);
+  book.style.setProperty('--bs', scale.toFixed(4));
+  book.style.setProperty('--zc', Math.max(1, closedZoom).toFixed(4));
 }
-
-// A tap on the page that is half outside the screen only slides to it.
-spread.addEventListener('click', (event) => {
-  if (isWide()) return;
-  const page = event.target.closest('.page');
-  const which = page === pageSide ? 'side' : page === pageMain ? 'main' : null;
-  if (which && which !== book.dataset.pan) {
-    event.preventDefault();
-    event.stopPropagation();
-    setPan(which);
-  }
-}, true);
+addEventListener('resize', fitBook);
+wideQuery.addEventListener('change', fitBook);
 
 // ---------- turning a page ----------
 
@@ -388,7 +396,6 @@ function turn(direction, change) {
   }
   back.querySelectorAll('.ink').forEach((node) => node.classList.remove('is-written'));
   spread.append(hold, leaf);
-  setPan('main'); // on a phone, slide back to the page where the verse lands
 
   return new Promise((resolve) => {
     const timeline = gsap.timeline({
@@ -411,23 +418,67 @@ function turn(direction, change) {
 
 let coverTimeline = null;
 
-function coverMotion(opening, duration) {
-  const wide = isWide();
-  // Closed, the cover sits in the middle. Open, it has swung over the spine.
-  // On a phone the open book is wider than the screen, so the left page
-  // starts outside the screen (-60%).
-  const closed = { rotationY: 0, left: wide ? '25%' : '10%', opacity: 1 };
-  const opened = { rotationY: 180, left: wide ? '0%' : '-60%' };
-  const timeline = gsap.timeline();
-  if (opening) {
-    timeline.fromTo(cover, closed, { ...opened, duration, ease: 'power2.inOut' }, 0);
-    timeline.fromTo(spread, { opacity: 0 }, { opacity: 1, duration: duration * 0.45, ease: 'sine.out' }, duration * 0.1);
-    timeline.to(cover, { opacity: 0, duration: 0.3, ease: 'sine.out' }, duration - 0.05);
-  } else {
-    timeline.fromTo(cover, { ...opened, opacity: 0 }, { ...closed, duration, ease: 'power2.inOut' }, 0);
-    timeline.to(cover, { opacity: 1, duration: 0.2 }, 0);
-    timeline.to(spread, { opacity: 0, duration: duration * 0.4 }, duration * 0.6);
+// Slow at the start (a hand lifting weight), steady in the middle, and still
+// moving when it lands, like a heavy block of paper falling over.
+const liftEase = (p) => p * p * (1.9 - 0.9 * p);
+
+function blankPage() {
+  return element('page', element('page__frame'));
+}
+
+// Builds the whole opening as one timeline (about 2.8 seconds at speed 1):
+// the cover and a thick block of pages lift together and fall to the right,
+// then a few loose pages follow. The last one carries the real right page.
+// Closing the book plays the same timeline backwards.
+function openingTimeline(loose) {
+  const boards = $('.boards', spread);
+  const cast = element('cast');
+  const leaves = [];
+  for (let k = 1; k <= loose; k += 1) {
+    const depth = (loose - k + 1) * 0.5; // the first to lift lies on top
+    const front = element('leaf__face leaf__face--front', blankPage(), element('leaf__shade'));
+    const back = element('leaf__face leaf__face--back', k === loose ? snapshot(pageMain) : blankPage(), element('leaf__shade'));
+    front.style.transform = `translateZ(${depth}px)`;
+    back.style.transform = `rotateY(180deg) translateZ(${-depth}px)`;
+    leaves.push(element('leaf leaf--loose', front, back));
   }
+  // lowest in the pile first, so that the top one is painted last
+  spread.append(cast, ...leaves.slice().reverse());
+
+  const zoom = Number(getComputedStyle(book).getPropertyValue('--zc')) || 1;
+  const timeline = gsap.timeline({ paused: true });
+  timeline.eventCallback('onComplete', null);
+  timeline.cleanup = () => {
+    cast.remove();
+    leaves.forEach((leaf) => leaf.remove());
+    gsap.set(cover, { clearProps: 'all' });
+    gsap.set(boards, { clearProps: 'all' });
+    book.style.removeProperty('--shift');
+    book.style.removeProperty('--zoom');
+  };
+
+  // 1. a thumb goes in and the edge of the block comes up a little
+  timeline.fromTo(cover, { rotationY: 0 }, { rotationY: 9, duration: 0.4, ease: 'power2.out' }, 0);
+  timeline.fromTo(boards, { opacity: 0 }, { opacity: 1, duration: 0.3, ease: 'none' }, 0);
+  // 2. the block turns over the spine and falls on the right side
+  timeline.to(cover, { rotationY: 180, duration: 1.55, ease: liftEase }, 0.4);
+  timeline.to(cover, { rotationY: 176.5, duration: 0.12, ease: 'power1.out' }, 1.95);
+  timeline.to(cover, { rotationY: 180, duration: 0.2, ease: 'power1.in' }, 2.07);
+  // meanwhile the book moves so that the spine ends in the middle of the desk
+  timeline.fromTo(book, { '--shift': '25%', '--zoom': zoom }, { '--shift': '0%', '--zoom': 1, duration: 1.75, ease: 'sine.inOut' }, 0.2);
+  // its shadow on the desk, then the leather under it
+  timeline.fromTo(cast, { opacity: 0 }, { opacity: 1, duration: 0.7, ease: 'sine.in' }, 0.9);
+  timeline.to(cast, { opacity: 0, duration: 0.35, ease: 'sine.out' }, 1.6);
+  timeline.fromTo(boards, { '--k': 1 }, { '--k': 0, duration: 0.4, ease: 'sine.inOut' }, 1.55);
+  // 3. the loose pages follow, one after another
+  leaves.forEach((leaf, index) => {
+    const start = 1.0 + index * 0.24;
+    const [frontShade, backShade] = leaf.querySelectorAll('.leaf__shade');
+    timeline.fromTo(leaf, { rotationY: 0 }, { rotationY: 180, duration: 1.1, ease: 'power2.inOut' }, start);
+    timeline.fromTo(frontShade, { opacity: 0 }, { opacity: 0.8, duration: 0.55, ease: 'sine.in' }, start);
+    timeline.fromTo(backShade, { opacity: 0.8 }, { opacity: 0, duration: 0.55, ease: 'sine.out' }, start + 0.55);
+  });
+  timeline.to({}, { duration: 0.12 }); // a short rest before the real page takes over
   return timeline;
 }
 
@@ -437,36 +488,40 @@ function openBook({ quick = false } = {}) {
   store('beytyab.seen', true);
   document.body.classList.add('book-open');
   spread.removeAttribute('aria-hidden');
-  book.dataset.state = 'opening';
-  const done = () => {
-    book.dataset.state = 'open';
-    gsap.set(cover, { clearProps: 'all' });
-    gsap.set(spread, { clearProps: 'opacity' });
-    coverTimeline = null;
-    writeInk();
-  };
   if (isCalm()) {
-    done();
+    book.dataset.state = 'open';
+    writeInk();
     return Promise.resolve();
   }
+  book.dataset.state = 'opening';
   pageSound();
   return new Promise((resolve) => {
-    coverTimeline = coverMotion(true, quick || seen ? 0.9 : 1.9);
-    coverTimeline.eventCallback('onComplete', () => { done(); resolve(); });
+    const timeline = openingTimeline(quick ? 2 : 3);
+    coverTimeline = timeline;
+    timeline.eventCallback('onComplete', () => {
+      book.dataset.state = 'open';
+      timeline.cleanup();
+      coverTimeline = null;
+      writeInk();
+      resolve();
+    });
+    timeline.timeScale(quick ? 1.7 : seen ? 1.25 : 1).play(0);
   });
 }
 
 function closeBook() {
   if (book.dataset.state !== 'open' || isCalm()) return Promise.resolve();
-  book.dataset.state = 'opening';
   pageSound();
   return new Promise((resolve) => {
-    const timeline = coverMotion(false, 0.8);
-    timeline.eventCallback('onComplete', () => {
+    const timeline = openingTimeline(2);
+    timeline.progress(1);
+    book.dataset.state = 'opening';
+    timeline.eventCallback('onReverseComplete', () => {
       book.dataset.state = 'closed';
-      gsap.set(cover, { clearProps: 'all' });
+      timeline.cleanup();
       resolve();
     });
+    timeline.timeScale(2).reverse();
   });
 }
 
@@ -501,7 +556,6 @@ async function runSearch(text) {
 async function openFal() {
   const { poem } = await ask({ type: 'randomPoem', collection: 'hafez' });
   if (!poem) return say('غزل‌های حافظ هنوز آماده نیست');
-  setPan('main');
   await closeBook();
   state.poem = poem;
   state.poemIsFal = true;
@@ -569,7 +623,6 @@ spread.addEventListener('click', (event) => {
     case 'next': return step(1);
     case 'prev': return step(-1);
     case 'home': return goHome();
-    case 'pan-side': return setPan('side');
     case 'mark': {
       toggleMark(verse);
       const marked = isMarked(verse);
@@ -634,11 +687,6 @@ spread.addEventListener('touchend', (event) => {
   touchStart = null;
   if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
   const forward = dx > 0; // dragging the page to the right moves forward
-  if (!isWide()) {
-    // Phones: first slide to the other page, then turn the page.
-    if (forward && book.dataset.pan !== 'side') return setPan('side');
-    if (!forward && book.dataset.pan === 'side') return setPan('main');
-  }
   step(forward ? 1 : -1);
 }, { passive: true });
 
@@ -694,7 +742,7 @@ function listen() {
 
 // ---------- start ----------
 
-setPan('main');
+fitBook();
 setSound(store('beytyab.sound') === true);
 showSound();
 showMarkCount();

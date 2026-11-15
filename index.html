@@ -128,11 +128,10 @@
   </nav>
   <div class="book" id="book" data-state="closed" data-view="search">
 
-    <!-- The open book: two pages on a wide screen, one page on a phone -->
+    <!-- The open book: two pages, right and left -->
     <div class="spread" id="spread" aria-hidden="true">
-      <!-- the leather boards under the pages, and a sliver of the facing page on phones -->
+      <!-- the leather boards under the pages -->
       <div class="boards" aria-hidden="true"></div>
-      <div class="peek" aria-hidden="true"></div>
       <article class="page page--main" id="page-main" aria-live="polite">
         <div class="page__frame" aria-hidden="true"></div>
         <svg class="page__corner page__corner--a" aria-hidden="true"><use href="#corner"/></svg>
@@ -174,6 +173,8 @@
         <div class="cover__trace" id="trace" aria-hidden="true"></div>
       </div>
       <div class="cover__face cover__face--back" aria-hidden="true"></div>
+      <div class="cover__edge cover__edge--fore" aria-hidden="true"></div>
+      <div class="cover__edge cover__edge--foot" aria-hidden="true"></div>
     </section>
   </div>
 
