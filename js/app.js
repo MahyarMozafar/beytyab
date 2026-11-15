@@ -3,6 +3,7 @@
 
 import { pageSound, setSound, soundIsOn } from './sound.js';
 import { shareVerse } from './share.js';
+import { OPENING_POEMS } from './opening-poems.js';
 
 const gsap = window.gsap;
 const $ = (selector, root = document) => root.querySelector(selector);
@@ -422,8 +423,21 @@ let coverTimeline = null;
 // moving when it lands, like a heavy block of paper falling over.
 const liftEase = (p) => p * p * (1.9 - 0.9 * p);
 
-function blankPage() {
-  return element('page', element('page__frame'));
+// The pages that turn while the book opens carry real ghazals, like any page
+// in the middle of a divan. Each opening takes the next ones from the list.
+let nextOpeningPoem = Math.floor(Math.random() * OPENING_POEMS.length);
+function poemPage() {
+  const poem = OPENING_POEMS[nextOpeningPoem % OPENING_POEMS.length];
+  nextOpeningPoem += 1;
+  const lines = poem.lines.map(([m1, m2]) => `<li><p class="m1">${esc(m1)}</p><p class="m2">${esc(m2)}</p></li>`).join('');
+  const body = element('page__body page__body--still');
+  body.innerHTML = `
+    <header class="head">
+      <span class="head__poet">${esc(poem.poet)}</span>
+      <span class="head__src">${esc(poem.title)}</span>
+    </header>
+    <ol class="poem poem--page" lang="fa">${lines}</ol>`;
+  return element('page', element('page__frame'), body);
 }
 
 // Builds the whole opening as one timeline (about 2.8 seconds at speed 1):
@@ -436,12 +450,14 @@ function openingTimeline(loose) {
   const leaves = [];
   for (let k = 1; k <= loose; k += 1) {
     const depth = (loose - k + 1) * 0.5; // the first to lift lies on top
-    const front = element('leaf__face leaf__face--front', blankPage(), element('leaf__shade'));
-    const back = element('leaf__face leaf__face--back', k === loose ? snapshot(pageMain) : blankPage(), element('leaf__shade'));
+    const front = element('leaf__face leaf__face--front', poemPage(), element('leaf__shade'));
+    const back = element('leaf__face leaf__face--back', k === loose ? snapshot(pageMain) : poemPage(), element('leaf__shade'));
     front.style.transform = `translateZ(${depth}px)`;
     back.style.transform = `rotateY(180deg) translateZ(${-depth}px)`;
     leaves.push(element('leaf leaf--loose', front, back));
   }
+  // the last page of the block that lifts with the cover
+  $('.cover__face--back', cover).replaceChildren(poemPage());
   // lowest in the pile first, so that the top one is painted last
   spread.append(cast, ...leaves.slice().reverse());
 
@@ -644,6 +660,14 @@ spread.addEventListener('click', (event) => {
     case 'fal-again': return openFal();
   }
 });
+
+// A mouse wheel moves the row of suggestions sideways.
+spread.addEventListener('wheel', (event) => {
+  const row = event.target.closest('.chips');
+  if (!row || Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+  event.preventDefault();
+  row.scrollLeft -= event.deltaY; // right-to-left row: down moves to the left
+}, { passive: false });
 
 spread.addEventListener('submit', (event) => {
   event.preventDefault();
