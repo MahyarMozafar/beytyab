@@ -1,7 +1,7 @@
 // Draw one verse as a picture (1080 × 1920, the size of a phone story) and
 // hand it to the phone's share sheet, or download it on a computer.
 
-export const SITE_ADDRESS = 'sher.mahyarmozafar.ir';
+export const SITE_ADDRESS = 'beytyab.mahyarmozafar.ir';
 
 const WIDTH = 1080;
 const HEIGHT = 1920;
