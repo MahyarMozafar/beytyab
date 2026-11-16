@@ -37,10 +37,19 @@
 
 *, *::before, *::after { box-sizing: border-box; }
 
-html { height: 100%; overflow: hidden; }
+/* Numbers that the animations change many times a second. Declared as
+   "not inherited", so a change touches one element and not every element
+   inside the book (that was a big part of the stutter on phones). */
+@property --shift { syntax: '<percentage>'; inherits: false; initial-value: 0%; }
+@property --zoom { syntax: '<number>'; inherits: false; initial-value: 1; }
+@property --k { syntax: '<number>'; inherits: false; initial-value: 0; }
+@property --p { syntax: '<number>'; inherits: false; initial-value: 0; }
+
+/* The page itself never scrolls: it is one fixed screen. Only the inside
+   of a book page (and the row of suggestions) can move. */
+html, body { position: fixed; inset: 0; overflow: hidden; overscroll-behavior: none; }
 body {
   margin: 0;
-  min-height: 100%;
   background: var(--desk);
   color: var(--ink);
   font-family: var(--ui);
@@ -937,7 +946,32 @@ svg.defs { position: absolute; }
     transform: scale(calc(var(--bs, .6) * var(--zoom))) translateX(var(--shift)) rotateX(9deg);
     transform-origin: 50% 50%;
   }
-  .boards { inset: -9px -20px -24px; }
+  .boards {
+    inset: -9px -20px -24px;
+    box-shadow: inset 0 0 0 1px rgba(255, 240, 205, .35), 0 4px 0 #8c6a3c, 0 18px 22px -12px rgba(60, 40, 10, .6);
+  }
+
+  /* Lighter paint for phones: no paper grain (it is redrawn on every
+     frame of an animation), fewer drawn sheets, no blurred filters. */
+  :root {
+    --noise: none;
+    --paper-inset: inset 0 0 22px rgba(150, 105, 45, .24);
+    --sheets-left: -2px 2px 0 #cbb584, -4px 4px 0 #efe2c0, -6px 6px 0 #b59c66;
+    --sheets-right: 2px 2px 0 #cbb584, 4px 4px 0 #efe2c0, 6px 6px 0 #b59c66;
+  }
+  .cover__face--front {
+    box-shadow:
+      inset 0 0 0 1px rgba(255, 240, 205, .35),
+      inset 0 0 40px rgba(110, 75, 30, .4),
+      -3px 3px 0 #f3e8cb, -6px 6px 0 #c6af7c, -9px 9px 0 #efe2c0, -12px 12px 0 #bfa772,
+      -15px 15px 0 #a9834f,
+      -16px 30px 26px -14px rgba(60, 40, 10, .6);
+    transition: none;
+  }
+  .medallion, .cover__lachak, .cover__trace { filter: none; }
+  .page__body--still { -webkit-mask-image: none; mask-image: none; }
+  /* a page change on a phone: the old pages fade away over the new ones */
+  .veil { position: absolute; inset: 0; z-index: 4; pointer-events: none; }
   /* The closed cover fills the screen and zooms out while it opens, so the
      small print waits until the book lies open, then shows below it. */
   .credit { transition: opacity .4s ease; }

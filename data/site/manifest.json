@@ -37,5 +37,18 @@
    "count": 25637,
    "bytes": 18302039
   }
- ]
+ ],
+ "parts": {
+  "models/e5-small-fa/onnx/model_quantized.onnx": 27,
+  "js/vendor/ort/ort-wasm-simd-threaded.wasm": 14,
+  "data/site/hafez.bin": 2,
+  "data/site/hafez.json": 2,
+  "data/site/saadi-ghazal.bin": 3,
+  "data/site/saadi-ghazal.json": 3,
+  "data/site/saadi-boostan.bin": 2,
+  "data/site/saadi-boostan.json": 2,
+  "data/site/moulavi-masnavi.bin": 10,
+  "data/site/moulavi-masnavi.json": 9
+ },
+ "files": "a6db8322a0"
 }

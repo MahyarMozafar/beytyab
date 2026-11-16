@@ -7,7 +7,10 @@
 //                {type:'randomPoem', id, collection}
 //                {type:'verse', id, collection, row}  one couplet (a shared link)
 //                {type:'daily', id, day}              the verse of the day
-// Messages out:  {type:'poems', loaded, total}        a poet's text is here:
+//                {type:'model'}                       the big download may start
+//                                                     (after init with waitForOpen)
+// Messages out:  {type:'network', ok}                 the connection is failing / is back
+//                {type:'poems', loaded, total}        a poet's text is here:
 //                                                     reading, fal and word
 //                                                     search work for it
 //                {type:'progress', loaded, total}
@@ -22,7 +25,6 @@ import { normalize } from './normalize.js';
 import { UnigramTokenizer } from './tokenizer.js';
 
 const ROOT = new URL('..', import.meta.url);
-const MODEL_DIR = new URL('models/e5-small-fa/', ROOT);
 const DATA_DIR = new URL('data/site/', ROOT);
 const ORT_DIR = new URL('js/vendor/ort/', ROOT);
 
@@ -32,48 +34,129 @@ let session = null;
 let modelReady = false; // true after the warm-up run
 const collections = []; // {info, vectors:Int8Array|null, poems, couplets, firstRow:Map}
 
-// ---- downloading with progress -------------------------------------------
+// ---- downloading: in parts, kept, and never giving up --------------------
+//
+// Many visitors are on a weak connection that drops. So:
+//  - big files come in 1 MB parts (tools/split_files.py);
+//  - every finished file or part is kept in the browser's cache at once,
+//    so a reload or the next visit goes on from where it stopped;
+//  - a part that fails or stalls is asked for again, with a longer wait
+//    each time, for as long as the page is open.
 
 let loadedBytes = 0;
 let totalBytes = 0;
+let shelf = null; // the Cache that keeps finished files; null if the browser has none
+const STALL = 30000; // a download that is silent this long is started again
 
-// `counted` downloads move the loading bar; the others arrive quietly.
-async function download(url, kind, counted = true) {
-  const response = await fetch(url);
-  if (!response.ok) throw new Error(`download failed: ${url}`);
-  if (!response.body) {
-    const whole = await response.arrayBuffer();
-    if (counted) {
-      loadedBytes += whole.byteLength;
-      reportProgress();
+async function openShelf() {
+  try {
+    const name = 'beytyab-files-' + manifest.files;
+    for (const key of await caches.keys()) {
+      if (key.startsWith('beytyab-files-') && key !== name) await caches.delete(key); // older files
     }
-    return finish(new Uint8Array(whole), kind);
+    shelf = await caches.open(name);
+    // ask the browser not to throw these files away when space gets tight
+    navigator.storage?.persist?.().catch(() => {});
+  } catch {
+    shelf = null;
   }
-  const reader = response.body.getReader();
-  const chunks = [];
-  let size = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    chunks.push(value);
-    size += value.byteLength;
-    if (counted) {
-      loadedBytes += value.byteLength;
-      reportProgress();
-    }
-  }
-  const bytes = new Uint8Array(size);
-  let offset = 0;
-  for (const chunk of chunks) {
-    bytes.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return finish(bytes, kind);
 }
 
-function finish(bytes, kind) {
-  if (kind === 'json') return JSON.parse(new TextDecoder().decode(bytes));
-  return bytes;
+// One request, read piece by piece so the loading bar can move.
+async function fetchBytes(url, onPiece) {
+  const control = new AbortController();
+  let timer = setTimeout(() => control.abort(), STALL);
+  try {
+    const response = await fetch(url, { signal: control.signal });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    if (!response.body) {
+      const whole = new Uint8Array(await response.arrayBuffer());
+      onPiece(whole.byteLength);
+      return whole;
+    }
+    const reader = response.body.getReader();
+    const chunks = [];
+    let size = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      clearTimeout(timer);
+      timer = setTimeout(() => control.abort(), STALL);
+      chunks.push(value);
+      size += value.byteLength;
+      onPiece(value.byteLength);
+    }
+    const bytes = new Uint8Array(size);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    return bytes;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// One file or one part: from the shelf if it is there, else from the
+// network, again and again until it arrives.
+async function fetchKept(path, counted) {
+  const url = new URL(path, ROOT);
+  url.searchParams.set('v', manifest.files); // also tells sw.js to stay out of it
+  const saved = shelf && (await shelf.match(url).catch(() => null));
+  if (saved) {
+    const bytes = new Uint8Array(await saved.arrayBuffer());
+    if (counted) {
+      loadedBytes += bytes.byteLength;
+      reportProgress();
+    }
+    return bytes;
+  }
+  for (let attempt = 0; ; attempt++) {
+    let got = 0;
+    try {
+      const bytes = await fetchBytes(url, (n) => {
+        got += n;
+        if (counted) {
+          loadedBytes += n;
+          reportProgress();
+        }
+      });
+      if (attempt > 0) postMessage({ type: 'network', ok: true });
+      shelf?.put(url, new Response(bytes)).catch(() => {});
+      return bytes;
+    } catch {
+      if (counted) loadedBytes -= got; // the lost piece comes again
+      if (attempt === 1) postMessage({ type: 'network', ok: false });
+      await new Promise((resolve) => setTimeout(resolve, Math.min(20000, 1500 * 2 ** attempt)));
+    }
+  }
+}
+
+// A whole file by its path on the site, put together from its parts.
+async function download(path, kind, counted = true) {
+  const count = manifest.parts?.[path];
+  let bytes;
+  if (!count) {
+    bytes = await fetchKept(path, counted);
+  } else {
+    const parts = new Array(count);
+    let next = 0;
+    const lane = async () => {
+      while (next < count) {
+        const i = next++;
+        parts[i] = await fetchKept(`${path}.p${String(i).padStart(3, '0')}`, counted);
+      }
+    };
+    await Promise.all([lane(), lane(), lane()]); // three parts at a time
+    bytes = new Uint8Array(parts.reduce((sum, part) => sum + part.byteLength, 0));
+    let offset = 0;
+    for (const part of parts) {
+      bytes.set(part, offset);
+      offset += part.byteLength;
+    }
+  }
+  return kind === 'json' ? JSON.parse(new TextDecoder().decode(bytes)) : bytes;
 }
 
 let lastReport = 0;
@@ -81,7 +164,7 @@ function reportProgress(force) {
   const now = Date.now();
   if (!force && now - lastReport < 80) return;
   lastReport = now;
-  postMessage({ type: 'progress', loaded: Math.min(loadedBytes, totalBytes), total: totalBytes });
+  postMessage({ type: 'progress', loaded: Math.max(0, Math.min(loadedBytes, totalBytes)), total: totalBytes });
 }
 
 // ---- loading -------------------------------------------------------------
@@ -100,7 +183,7 @@ function whenTextIsHere(name) {
 // visitor can already read, take a fal and search by words. The vectors
 // (big) are only needed for the search by meaning.
 async function loadText(info, counted) {
-  const text = await download(new URL(`${info.name}.json`, DATA_DIR), 'json', counted);
+  const text = await download(`data/site/${info.name}.json`, 'json', counted);
   const firstRow = new Map(); // poem number -> its first couplet row
   text.couplets.forEach((couplet, row) => {
     if (!firstRow.has(couplet[0])) firstRow.set(couplet[0], row);
@@ -112,17 +195,33 @@ async function loadText(info, counted) {
 }
 
 async function loadVectors(info, counted) {
-  const bytes = await download(new URL(`${info.name}.bin`, DATA_DIR), 'bytes', counted);
+  const bytes = await download(`data/site/${info.name}.bin`, 'bytes', counted);
   const collection = collections.find((c) => c.info === info);
   collection.vectors = new Int8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength);
 }
+
+// Resolved when the page says the big download may start.
+let startModel;
+const mayLoadModel = new Promise((resolve) => { startModel = resolve; });
 
 // Resolved when the list of poets is known.
 let manifestIsHere;
 const ready = new Promise((resolve) => { manifestIsHere = resolve; });
 
 async function init() {
-  manifest = await (await fetch(new URL('manifest.json', DATA_DIR))).json();
+  // The list of files: small, always asked fresh, and asked again if the
+  // connection fails (sw.js answers from its copy when there is no network).
+  for (let attempt = 0; !manifest; attempt++) {
+    try {
+      const response = await fetch(new URL('manifest.json', DATA_DIR), { cache: 'no-cache' });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      manifest = await response.json();
+    } catch {
+      if (attempt === 1) postMessage({ type: 'network', ok: false });
+      await new Promise((resolve) => setTimeout(resolve, Math.min(20000, 1500 * 2 ** attempt)));
+    }
+  }
+  await openShelf();
   manifestIsHere();
   const [first, ...rest] = manifest.collections;
   // The bar on the cover covers everything needed for the first search by meaning.
@@ -136,13 +235,14 @@ async function init() {
     for (const info of rest) await loadText(info, false);
   })();
 
-  // 3. The engine, the model and Hafez's vectors.
-  const [wasm, model, tokenizerJson] = await Promise.all([
-    download(new URL('ort-wasm-simd-threaded.wasm', ORT_DIR), 'bytes'),
-    download(new URL('onnx/model_quantized.onnx', MODEL_DIR), 'bytes'),
-    download(new URL('tokenizer.json', MODEL_DIR), 'json'),
-    loadVectors(first, true),
-  ]);
+  // 3. The engine, the model and Hafez's vectors. On a phone the page asks
+  //    for them only when the cover has opened, so that the opening is not
+  //    slowed down by a big download and the start of the model.
+  await mayLoadModel;
+  const tokenizerJson = await download('models/e5-small-fa/tokenizer.json', 'json');
+  await loadVectors(first, true);
+  const wasm = await download('js/vendor/ort/ort-wasm-simd-threaded.wasm', 'bytes');
+  const model = await download('models/e5-small-fa/onnx/model_quantized.onnx', 'bytes');
 
   tokenizer = new UnigramTokenizer(tokenizerJson);
   ort.env.wasm.numThreads = 1; // more threads need special server headers
@@ -335,7 +435,10 @@ self.onmessage = async (event) => {
   const message = event.data;
   try {
     if (message.type === 'init') {
+      if (!message.waitForOpen) startModel();
       await init();
+    } else if (message.type === 'model') {
+      startModel();
     } else if (message.type === 'search') {
       const started = performance.now();
       const byMeaning = modelReady;

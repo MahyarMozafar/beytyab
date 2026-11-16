@@ -20,3 +20,15 @@ data/raw/
 
 # Built vectors (made by tools/embed.py)
 data/build/
+
+# Whole files that the site serves in 1 MB parts (tools/split_files.py --join rebuilds them)
+data/site/hafez.bin
+data/site/hafez.json
+data/site/moulavi-masnavi.bin
+data/site/moulavi-masnavi.json
+data/site/saadi-boostan.bin
+data/site/saadi-boostan.json
+data/site/saadi-ghazal.bin
+data/site/saadi-ghazal.json
+js/vendor/ort/ort-wasm-simd-threaded.wasm
+models/e5-small-fa/onnx/model_quantized.onnx

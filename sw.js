@@ -9,15 +9,22 @@
 // its own, once gave a visitor today's page with yesterday's search
 // thread, and a part of the page stayed empty.
 
-const VERSION = 'beytyab-v3'; // v3: page files come from the network first
-const HEAVY = /\/(models|data|fonts|js\/vendor)\//;
+const VERSION = 'beytyab-v4'; // v4: the big files are kept by js/worker.js, in parts
+// Fonts and libraries: the same file under the same name for ever.
+const HEAVY = /\/(fonts|js\/vendor)\//;
+// The model, the engine and the poems are downloaded in parts by
+// js/worker.js, which keeps them in its own cache ("beytyab-files-...").
+// It marks those requests with ?v=..., and this file leaves them alone.
+const KEPT_BY_WORKER = 'beytyab-files-';
 
 self.addEventListener('install', () => self.skipWaiting());
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys()
-      .then((names) => Promise.all(names.filter((n) => n !== VERSION).map((n) => caches.delete(n))))
+      .then((names) => Promise.all(names
+        .filter((n) => n !== VERSION && !n.startsWith(KEPT_BY_WORKER))
+        .map((n) => caches.delete(n))))
       .then(() => self.clients.claim()),
   );
 });
@@ -51,5 +58,6 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET') return;
   const url = new URL(request.url);
   if (url.origin !== location.origin) return;
+  if (url.searchParams.has('v')) return;
   event.respondWith(HEAVY.test(url.pathname) ? fromCacheFirst(request) : fromNetworkFirst(request));
 });

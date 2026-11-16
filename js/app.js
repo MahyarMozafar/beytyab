@@ -93,7 +93,10 @@ function ask(message) {
 }
 
 worker.onmessage = ({ data }) => {
-  if (data.type === 'poems') {
+  if (data.type === 'network') {
+    state.weakNetwork = !data.ok;
+    showProgress();
+  } else if (data.type === 'poems') {
     const first = !state.poemsReady;
     state.poemsReady = true;
     showProgress();
@@ -133,6 +136,7 @@ function showProgress() {
   if (trace) trace.style.setProperty('--p', String(state.percent));
   let text;
   if (state.failed) text = 'بارگیری کامل نشد. اینترنت را بررسی کن و صفحه را دوباره باز کن.';
+  else if (state.weakNetwork) text = 'اینترنت ضعیف است؛ دوباره تلاش می‌کنم…';
   else if (!state.poemsReady) text = 'در حال آماده‌سازی…';
   else if (!state.ready) text = `کتاب باز می‌شود · هوش مصنوعی ${fa(state.percent)}٪ (بار اول حدود ۲۶ مگابایت)`;
   else text = 'آماده است';
@@ -147,6 +151,7 @@ function showProgress() {
   if (fal) fal.disabled = !state.poemsReady;
   if (status) {
     if (state.failed) status.textContent = text;
+    else if (state.weakNetwork && !state.ready) status.innerHTML = `اینترنت ضعیف است؛ هر تکه که برسد نگه داشته می‌شود و ادامه می‌دهم… <b>${fa(state.percent)}٪</b>`;
     else if (!state.poemsReady) status.textContent = 'کتاب در حال آماده شدن است…';
     else if (!state.ready) status.innerHTML = `هوش مصنوعی در راه است… <b>${fa(state.percent)}٪</b><br>تا آن وقت با <b>کلمه‌های خودت</b> می‌گردم و فال حافظ هم آماده است.`;
     else if (state.poets < state.poetsTotal) status.textContent = 'حافظ آماده است؛ سعدی و مولانا هم در راه‌اند…';
@@ -506,6 +511,27 @@ function turn(direction, change) {
   change();
   render();
 
+  // Phones: no 3D leaf. The old pages lie over the new ones and fade away
+  // with a small slide. It is quick and stays smooth on a weak phone.
+  if (!isWide()) {
+    const veil = element('veil', element('hold', oldMain), element('hold hold--left', oldSide));
+    spread.append(veil);
+    return new Promise((resolve) => {
+      gsap.to(veil, {
+        opacity: 0,
+        x: direction === 'next' ? 18 : -18,
+        duration: 0.34,
+        ease: 'power1.out',
+        onComplete() {
+          veil.remove();
+          state.turning = false;
+          writeInk();
+          resolve();
+        },
+      });
+    });
+  }
+
   const front = element('leaf__face leaf__face--front');
   const back = element('leaf__face leaf__face--back');
   const shade = element('leaf__shade');
@@ -576,6 +602,8 @@ function poemPage() {
 // then a few loose pages follow. The last one carries the real right page.
 // Closing the book plays the same timeline backwards.
 function openingTimeline(loose) {
+  const light = !isWide(); // phones: one loose page and no shadow on the desk
+  if (light) loose = 1;
   const boards = $('.boards', spread);
   const cast = element('cast');
   const leaves = [];
@@ -590,7 +618,8 @@ function openingTimeline(loose) {
   // the last page of the block that lifts with the cover
   $('.cover__face--back', cover).replaceChildren(poemPage());
   // lowest in the pile first, so that the top one is painted last
-  spread.append(cast, ...leaves.slice().reverse());
+  if (!light) spread.append(cast);
+  spread.append(...leaves.slice().reverse());
 
   const zoom = Number(getComputedStyle(book).getPropertyValue('--zc')) || 1;
   const timeline = gsap.timeline({ paused: true });
@@ -614,8 +643,10 @@ function openingTimeline(loose) {
   // meanwhile the book moves so that the spine ends in the middle of the desk
   timeline.fromTo(book, { '--shift': '25%', '--zoom': zoom }, { '--shift': '0%', '--zoom': 1, duration: 1.75, ease: 'sine.inOut' }, 0.2);
   // its shadow on the desk, then the leather under it
-  timeline.fromTo(cast, { opacity: 0 }, { opacity: 1, duration: 0.7, ease: 'sine.in' }, 0.9);
-  timeline.to(cast, { opacity: 0, duration: 0.35, ease: 'sine.out' }, 1.6);
+  if (!light) {
+    timeline.fromTo(cast, { opacity: 0 }, { opacity: 1, duration: 0.7, ease: 'sine.in' }, 0.9);
+    timeline.to(cast, { opacity: 0, duration: 0.35, ease: 'sine.out' }, 1.6);
+  }
   timeline.fromTo(boards, { '--k': 1 }, { '--k': 0, duration: 0.4, ease: 'sine.inOut' }, 1.55);
   // 3. the loose pages follow, one after another
   leaves.forEach((leaf, index) => {
@@ -637,6 +668,7 @@ function openBook({ quick = false } = {}) {
   spread.removeAttribute('aria-hidden');
   if (isCalm()) {
     book.dataset.state = 'open';
+    worker.postMessage({ type: 'model' });
     writeInk();
     return Promise.resolve();
   }
@@ -649,10 +681,12 @@ function openBook({ quick = false } = {}) {
       book.dataset.state = 'open';
       timeline.cleanup();
       coverTimeline = null;
+      worker.postMessage({ type: 'model' }); // the big download may start now
       writeInk();
       resolve();
     });
-    timeline.timeScale(quick ? 1.7 : seen ? 1.25 : 1).play(0);
+    // phones get a shorter opening
+    timeline.timeScale(quick ? 1.7 : !isWide() ? 1.45 : seen ? 1.25 : 1).play(0);
   });
 }
 
@@ -993,7 +1027,8 @@ showSound();
 showMarkCount();
 render();
 showProgress();
-worker.postMessage({ type: 'init' });
+// On a phone the big download waits until the cover has opened.
+worker.postMessage({ type: 'init', waitForOpen: !isWide() });
 openSharedVerse();
 
 // On the live site always; on a local test server only with ?sw=1, so that
