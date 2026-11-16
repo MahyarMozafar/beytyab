@@ -102,6 +102,7 @@ worker.onmessage = ({ data }) => {
     state.percent = Math.floor((100 * data.loaded) / data.total);
     showProgress();
   } else if (data.type === 'ready') {
+    state.poemsReady = true;
     state.ready = true;
     state.percent = 100;
     state.poetsTotal = data.collections;
@@ -199,7 +200,6 @@ function searchView() {
       <p class="muted status" id="status" role="status"></p>
     </form>`;
   sideBody.innerHTML = `
-    <h2 class="side-title">بیتِ امروز</h2>
     <div id="daily">${dailyBlock()}</div>
     <div class="rule"></div>
     <p class="muted" style="text-align:center">حالت را با زبان خودت بنویس؛ کتاب بیت‌هایی با همان <b>معنی</b> می‌آورد.<br>
@@ -211,8 +211,10 @@ function searchView() {
 // The verse of the day sits on the left page of the first spread.
 function dailyBlock() {
   const verse = state.daily;
-  if (!verse) return '<p class="muted" style="text-align:center">…</p>';
+  // Until it arrives (or if it never does) the page shows a plain welcome.
+  if (!verse) return '<h2 class="side-title">خوش آمدی</h2><p class="muted" style="text-align:center">این کتاب، شعری برای حالِ دلت پیدا می‌کند.</p>';
   return `
+    <h2 class="side-title">بیتِ امروز</h2>
     <button class="daily" type="button" data-act="daily-open" aria-label="بیت امروز را باز کن">
       <span class="daily__verse" lang="fa">${esc(verse.m1)}<br>${esc(verse.m2)}</span>
       <span class="daily__src">${esc(verse.poet)} · ${esc(shortTitle(verse.title))}</span>
