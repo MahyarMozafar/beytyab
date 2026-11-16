@@ -702,6 +702,44 @@ svg.defs { position: absolute; }
   font-size: .92rem;
   line-height: 2;
 }
+/* the mood of a fal: a small plate with its colour */
+.omen {
+  --tone: var(--gold);
+  flex: none;
+  margin: 2px 0 10px;
+  padding: 10px 14px 12px;
+  border: 1px solid var(--tone);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--tone) 10%, transparent);
+  text-align: center;
+}
+.omen--3 { --tone: #2f7a4f; }
+.omen--2 { --tone: var(--lapis); }
+.omen--1 { --tone: #a8741a; }
+.omen--0 { --tone: var(--rose); }
+.omen__label {
+  display: inline-block;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: var(--tone);
+  color: #fbf3df;
+  font-weight: 800;
+  font-size: .86rem;
+  line-height: 2;
+}
+.omen__line { margin: 8px 0 0; font-size: .95rem; line-height: 2; font-weight: 600; color: var(--ink); }
+.note {
+  flex: none;
+  margin: 0 0 8px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(31, 63, 122, .08);
+  color: var(--lapis-deep);
+  font-size: .78rem;
+  line-height: 1.8;
+  text-align: center;
+}
+
 .meaning__label { display: block; font-size: .76rem; font-weight: 700; color: var(--rose); }
 .meaning[hidden] { display: none; }
 
@@ -877,6 +915,7 @@ svg.defs { position: absolute; }
   .poem--page p { font-size: .86rem; }
   .poem--page .m1 { padding-left: 0; }
   .poem--page .m2 { padding-right: 0; }
+  .omen__line { font-size: .86rem; }
   .verse p { font-size: 1.16rem; }
   .verse--long p { font-size: 1rem; }
   .verse .m1 { padding-left: 0; }

@@ -36,7 +36,9 @@ const EXAMPLES = [
 
 const state = {
   view: 'search',
-  ready: false,
+  ready: false, // the model is loaded: search by meaning works
+  poemsReady: false, // Hafez's text is loaded: reading, fal and word search work
+  byMeaning: true, // how the pages on show were found
   percent: 0,
   poets: 0,
   poetsTotal: 4,
@@ -89,7 +91,10 @@ function ask(message) {
 }
 
 worker.onmessage = ({ data }) => {
-  if (data.type === 'progress') {
+  if (data.type === 'poems') {
+    state.poemsReady = true;
+    showProgress();
+  } else if (data.type === 'progress') {
     state.percent = Math.floor((100 * data.loaded) / data.total);
     showProgress();
   } else if (data.type === 'ready') {
@@ -123,18 +128,22 @@ function showProgress() {
   if (trace) trace.style.setProperty('--p', String(state.percent));
   let text;
   if (state.failed) text = 'بارگیری کامل نشد. اینترنت را بررسی کن و صفحه را دوباره باز کن.';
-  else if (!state.ready) text = `در حال آماده‌سازی… ${fa(state.percent)}٪ · بار اول حدود ۴۰ مگابایت`;
+  else if (!state.poemsReady) text = 'در حال آماده‌سازی…';
+  else if (!state.ready) text = `کتاب باز می‌شود · هوش مصنوعی ${fa(state.percent)}٪ (بار اول حدود ۲۶ مگابایت)`;
   else text = 'آماده است';
   if (line) line.textContent = text;
 
   const status = $('#status');
   const go = $('#go');
   const fal = $('#fal');
-  if (go) go.disabled = !state.ready;
-  if (fal) fal.disabled = !state.ready;
+  // The book is usable as soon as the first poems are here; the search by
+  // meaning joins when the model has arrived.
+  if (go) go.disabled = !state.poemsReady;
+  if (fal) fal.disabled = !state.poemsReady;
   if (status) {
     if (state.failed) status.textContent = text;
-    else if (!state.ready) status.innerHTML = `هوش مصنوعی در حال آماده شدن است… <b>${fa(state.percent)}٪</b>`;
+    else if (!state.poemsReady) status.textContent = 'کتاب در حال آماده شدن است…';
+    else if (!state.ready) status.innerHTML = `هوش مصنوعی در راه است… <b>${fa(state.percent)}٪</b><br>تا آن وقت با <b>کلمه‌های خودت</b> می‌گردم و فال حافظ هم آماده است.`;
     else if (state.poets < state.poetsTotal) status.textContent = 'حافظ آماده است؛ سعدی و مولانا هم در راه‌اند…';
     else status.textContent = 'بیش از ۴۱ هزار بیت از حافظ، سعدی و مولانا آماده است.';
   }
@@ -233,6 +242,7 @@ function resultView() {
     </nav>`;
   sideBody.innerHTML = `
     ${state.query ? `<p class="query-echo">حالِ تو: <q>${esc(state.query)}</q></p>` : '<p class="query-echo">از بیت‌های نشان‌شده</p>'}
+    ${state.query && !state.byMeaning ? '<p class="note">این بیت‌ها با <b>کلمه‌های تو</b> پیدا شدند. هوش مصنوعی که آماده شد، دوباره بگرد تا با <b>معنی</b> بگردد.</p>' : ''}
     ${meaningBlock(verse)}
     <p class="muted">از <b>${esc(verse.book)}</b>، ${esc(verse.title)} ·
       <a href="${esc(verse.url)}" target="_blank" rel="noopener">متن کامل در گنجور</a></p>
@@ -270,6 +280,21 @@ function poemView() {
       ${state.poemIsFal ? `<button class="btn" type="button" data-act="fal-again">فال دوباره</button>` : ''}
       <button class="btn" type="button" data-act="share-first">${icon('i-share')}کارت</button>
     </nav>`;
+  if (state.poemIsFal && poem.reading) {
+    const reading = poem.reading;
+    sideBody.innerHTML = `
+      <h2 class="side-title">تعبیر فال تو</h2>
+      <div class="omen omen--${reading.omen}">
+        <span class="omen__label">${esc(reading.label)}</span>
+        <p class="omen__line">${esc(reading.line)}</p>
+      </div>
+      <div class="meaning"><span class="meaning__label">این غزل چه می‌گوید؟</span>${esc(reading.summary)}</div>
+      <p class="muted">${fa(poem.lines.length)} بیت ·
+        <a href="${esc(poem.url)}" target="_blank" rel="noopener">این غزل در گنجور</a></p>
+      <div class="rule"></div>
+      <p class="muted" style="text-align:center">تعبیر را ماشین نوشته و برای دلخوشی است.<br>هر بار که کتاب را باز کنی، غزل دیگری می‌آید.</p>`;
+    return;
+  }
   sideBody.innerHTML = `
     <h2 class="side-title">${state.poemIsFal ? 'فال تو' : esc(shortTitle(poem.title))}</h2>
     ${first && first.meaning ? `<div class="meaning"><span class="meaning__label">معنی سادهٔ بیت اول</span>${esc(first.meaning)}</div>` : ''}
@@ -554,13 +579,19 @@ book.addEventListener('pointerdown', () => {
 async function runSearch(text) {
   const query = text.trim().replace(/\s+/g, ' ');
   if (query.length < 2) return say('اول چند کلمه از حال دلت بنویس');
-  if (!state.ready) return say('هوش مصنوعی هنوز آماده نشده؛ چند لحظه صبر کن');
+  if (!state.poemsReady) return say('کتاب هنوز آماده نشده؛ چند لحظه صبر کن');
   const go = $('#go');
   if (go) { go.disabled = true; go.textContent = 'در حال گشتن…'; }
   try {
-    const { results } = await ask({ type: 'search', text: query, top: RESULT_PAGES });
-    if (!results.length) throw new Error('empty');
+    const { results, byMeaning } = await ask({ type: 'search', text: query, top: RESULT_PAGES });
+    if (!results.length) {
+      // Only the word search can come back empty-handed.
+      say('با این کلمه‌ها بیتی پیدا نشد. چند کلمهٔ دیگر بنویس، یا صبر کن تا هوش مصنوعی آماده شود');
+      if (go) { go.disabled = false; go.textContent = 'بیت‌ها را پیدا کن'; }
+      return;
+    }
     await turn('next', () => {
+      state.byMeaning = byMeaning;
       state.query = query;
       state.results = results;
       state.index = 0;
@@ -572,9 +603,26 @@ async function runSearch(text) {
   }
 }
 
+// The reading of each ghazal (its mood and what it says as a whole) is one
+// small file, fetched the first time somebody takes a fal.
+let falFile = null;
+async function falReading(poemNumber) {
+  try {
+    falFile ??= fetch('data/site/hafez-fal.json').then((response) => response.json());
+    const { moods, poems } = await falFile;
+    const [moodNumber, summary] = poems[poemNumber];
+    const mood = moods[moodNumber];
+    return { omen: mood.omen, label: mood.label, line: mood.lines[poemNumber % mood.lines.length], summary };
+  } catch {
+    falFile = null; // try again next time
+    return null; // the fal still opens, with the meaning of its first couplet
+  }
+}
+
 async function openFal() {
   const { poem } = await ask({ type: 'randomPoem', collection: 'hafez' });
   if (!poem) return say('غزل‌های حافظ هنوز آماده نیست');
+  poem.reading = await falReading(poem.poem);
   await closeBook();
   state.poem = poem;
   state.poemIsFal = true;
@@ -686,7 +734,7 @@ spread.addEventListener('keydown', (event) => {
 
 spread.addEventListener('click', (event) => {
   if (event.target.closest('#fal')) {
-    if (!state.ready) return say('چند لحظه صبر کن تا کتاب آماده شود');
+    if (!state.poemsReady) return say('چند لحظه صبر کن تا کتاب آماده شود');
     turn('next', () => { state.view = 'niyat'; });
   } else if (event.target.closest('#mic')) {
     listen();
