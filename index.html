@@ -12,6 +12,8 @@
 <meta property="og:locale" content="fa_IR">
 <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
 <link rel="manifest" href="site.webmanifest">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-title" content="بیت‌یاب">
 <link rel="preload" href="fonts/Vazirmatn-wght.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="fonts/NotoNastaliqUrdu-arabic.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="css/main.css">
@@ -116,6 +118,8 @@
     <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
     <symbol id="i-next" viewBox="0 0 24 24"><path d="M14.5 5 8 12l6.5 7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
     <symbol id="i-prev" viewBox="0 0 24 24"><path d="M9.5 5 16 12l-6.5 7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 14a4.2 4.2 0 0 0 6 0l3.2-3.2a4.2 4.2 0 0 0-6-6L12 6M14 10a4.2 4.2 0 0 0-6 0l-3.2 3.2a4.2 4.2 0 0 0 6 6L12 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 11v5.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="7.8" r="1.1" fill="currentColor"/></symbol>
     <symbol id="i-book" viewBox="0 0 24 24"><path d="M12 6c-2-1.6-4.6-2-8-2v14c3.4 0 6 .4 8 2 2-1.6 4.6-2 8-2V4c-3.4 0-6 .4-8 2Zm0 0v14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></symbol>
   </defs>
 </svg>
@@ -124,6 +128,7 @@
   <nav class="tools" aria-label="ابزارها">
     <button class="tool" id="tool-home" type="button" aria-label="صفحهٔ نخست" title="صفحهٔ نخست"><svg><use href="#i-home"/></svg></button>
     <button class="tool" id="tool-marks" type="button" aria-label="بیت‌های نشان‌شده" title="نشان‌شده‌ها"><svg><use href="#i-mark"/></svg></button>
+    <button class="tool" id="tool-about" type="button" aria-label="این کتاب چطور کار می‌کند؟" title="دربارهٔ کتاب"><svg><use href="#i-info"/></svg></button>
     <button class="tool" id="tool-sound" type="button" aria-label="صدای ورق زدن" aria-pressed="false" title="صدا"><svg><use href="#i-sound-off"/></svg></button>
   </nav>
   <div class="book" id="book" data-state="closed" data-view="search">
@@ -166,6 +171,7 @@
         </div>
 
         <div class="cover__foot">
+          <p class="cover__gift" id="cover-gift" hidden>یک بیت برای تو فرستاده‌اند</p>
           <button class="open-btn" id="open-btn" type="button">کتاب را باز کن</button>
           <p class="cover__load" id="cover-load" role="status">در حال آماده‌سازی…</p>
         </div>

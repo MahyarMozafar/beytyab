@@ -39,6 +39,8 @@ const state = {
   ready: false, // the model is loaded: search by meaning works
   poemsReady: false, // Hafez's text is loaded: reading, fal and word search work
   byMeaning: true, // how the pages on show were found
+  origin: 'search', // where the pages on show come from: search | marks | link | daily
+  daily: null, // the verse of the day
   percent: 0,
   poets: 0,
   poetsTotal: 4,
@@ -92,8 +94,10 @@ function ask(message) {
 
 worker.onmessage = ({ data }) => {
   if (data.type === 'poems') {
+    const first = !state.poemsReady;
     state.poemsReady = true;
     showProgress();
+    if (first) loadDaily();
   } else if (data.type === 'progress') {
     state.percent = Math.floor((100 * data.loaded) / data.total);
     showProgress();
@@ -195,16 +199,102 @@ function searchView() {
       <p class="muted status" id="status" role="status"></p>
     </form>`;
   sideBody.innerHTML = `
-    <h2 class="side-title">این کتاب چطور کار می‌کند؟</h2>
-    <ol class="how">
-      <li>حال یا موقعیتت را با زبان خودت بنویس. لازم نیست کلمه‌های شعر را بدانی.</li>
-      <li>هوش مصنوعی معنای جمله‌ات را می‌فهمد و با معنای هزاران بیت مقایسه می‌کند.</li>
-      <li>نزدیک‌ترین بیت‌ها، هر کدام در یک صفحه، جلوی تو باز می‌شوند.</li>
-    </ol>
+    <h2 class="side-title">بیتِ امروز</h2>
+    <div id="daily">${dailyBlock()}</div>
     <div class="rule"></div>
-    <p class="muted" style="text-align:center">همه‌چیز روی دستگاه خودت انجام می‌شود.<br>نوشته‌ات به هیچ جایی فرستاده نمی‌شود.</p>`;
+    <p class="muted" style="text-align:center">حالت را با زبان خودت بنویس؛ کتاب بیت‌هایی با همان <b>معنی</b> می‌آورد.<br>
+      <button class="textlink" type="button" data-act="about">این کتاب چطور کار می‌کند؟</button></p>`;
   if (speechAvailable()) $('#mic').hidden = false;
   showProgress();
+}
+
+// The verse of the day sits on the left page of the first spread.
+function dailyBlock() {
+  const verse = state.daily;
+  if (!verse) return '<p class="muted" style="text-align:center">…</p>';
+  return `
+    <button class="daily" type="button" data-act="daily-open" aria-label="بیت امروز را باز کن">
+      <span class="daily__verse" lang="fa">${esc(verse.m1)}<br>${esc(verse.m2)}</span>
+      <span class="daily__src">${esc(verse.poet)} · ${esc(shortTitle(verse.title))}</span>
+      <span class="daily__more">معنی و صفحهٔ این بیت${icon('i-next')}</span>
+    </button>`;
+}
+
+// Tehran time decides when "today" turns over (UTC + 3:30).
+const today = () => Math.floor((Date.now() + 3.5 * 3600e3) / 86400e3);
+
+async function loadDaily() {
+  try {
+    const { verse } = await ask({ type: 'daily', day: today() });
+    state.daily = verse;
+    const slot = $('#daily');
+    if (slot) slot.innerHTML = dailyBlock();
+  } catch { /* the page works without it */ }
+}
+
+function aboutView() {
+  mainBody.innerHTML = `
+    <header class="head"><span class="head__poet">این کتاب چطور کار می‌کند؟</span>
+      <span class="head__src">جست‌وجو با معنی، نه با کلمه</span></header>
+    <ol class="how">
+      <li>حال یا موقعیتت را با زبان خودت می‌نویسی. لازم نیست کلمه‌های شعر را بدانی.</li>
+      <li>یک هوش مصنوعیِ کوچک جمله‌ات را به ۳۸۴ عدد تبدیل می‌کند. این عددها «معنی» جملهٔ تو هستند.</li>
+      <li>معنی بیش از ۴۱ هزار بیت از حافظ، سعدی و مولانا از قبل به همین شکل حساب شده است.</li>
+      <li>کتاب عددهای تو را با عددهای همهٔ بیت‌ها مقایسه می‌کند و نزدیک‌ترین‌ها را، هر کدام در یک صفحه، باز می‌کند.</li>
+    </ol>
+    <nav class="pager"><button class="btn" type="button" data-act="home">${icon('i-prev')}صفحهٔ نخست</button><span></span><span></span></nav>`;
+  sideBody.innerHTML = `
+    <h2 class="side-title">زیرِ جلدِ کتاب</h2>
+    <ul class="facts">
+      <li><b>همه‌چیز روی دستگاه خودت.</b> هوش مصنوعی داخل مرورگر تو کار می‌کند. سروری در کار نیست و نوشته‌ات به هیچ جایی فرستاده نمی‌شود.</li>
+      <li><b>مدلِ سبک‌شده.</b> مدل زبانیِ <bdi dir="ltr">multilingual-e5-small</bdi> صد زبان می‌داند. فقط واژه‌های فارسی‌اش نگه داشته شد و حجمش از ۱۱۸ به ۲۷ مگابایت رسید، بدون اینکه جواب‌ها عوض شود.</li>
+      <li><b>بدون اینترنت.</b> بعد از بار اول، کتاب روی دستگاهت می‌ماند و بی‌اینترنت هم باز می‌شود.</li>
+      <li><b>متن شعرها</b> و معنی‌های ساده از <a href="https://ganjoor.net" target="_blank" rel="noopener">گنجور</a> است. معنی‌ها را ماشین نوشته و شاید دقیق نباشند.</li>
+    </ul>
+    ${installBlock()}
+    <div class="rule"></div>
+    <p class="muted" style="text-align:center">ساختهٔ <a href="https://mahyarmozafar.ir" target="_blank" rel="noopener">مهیار مظفر</a> ·
+      <a href="https://github.com/MahyarMozafar/beytyab" target="_blank" rel="noopener">کدِ برنامه</a></p>`;
+}
+
+// ---------- on the home screen, like an app ----------
+
+// Android browsers hand over an "install" question that the page may ask
+// later, on a button. iPhones have no such thing: there the reader adds
+// the page by hand, so the page only explains how.
+let installQuestion = null;
+window.addEventListener('beforeinstallprompt', (event) => {
+  event.preventDefault();
+  installQuestion = event;
+  if (state.view === 'about') render();
+});
+window.addEventListener('appinstalled', () => {
+  installQuestion = null;
+  if (state.view === 'about') render();
+});
+
+function installBlock() {
+  const installed = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  if (installed) return '';
+  const apple = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  let body;
+  if (installQuestion) {
+    body = `<button class="btn btn--main" type="button" data-act="install">روی صفحهٔ گوشی بگذار</button>`;
+  } else if (apple) {
+    body = `<p class="muted">در سافاری دکمهٔ <b>Share</b> را بزن و بعد <b dir="ltr">Add to Home Screen</b> را انتخاب کن.</p>`;
+  } else {
+    body = `<p class="muted">از منوی مرورگر، <b dir="ltr">Add to Home screen</b> یا <b dir="ltr">Install</b> را انتخاب کن.</p>`;
+  }
+  return `<div class="install"><span class="meaning__label">بیت‌یاب مثل یک برنامه</span>
+    <p class="muted">کتاب را روی صفحهٔ اصلی گوشی بگذار تا با یک لمس باز شود.</p>${body}</div>`;
+}
+
+async function install() {
+  if (!installQuestion) return;
+  installQuestion.prompt();
+  await installQuestion.userChoice.catch(() => null);
+  installQuestion = null;
+  if (state.view === 'about') render();
 }
 
 function meaningBlock(verse, extraClass = '', hidden = false) {
@@ -213,11 +303,20 @@ function meaningBlock(verse, extraClass = '', hidden = false) {
     <span class="meaning__label">معنی ساده</span>${esc(verse.meaning)}</div>`;
 }
 
+// The small line above a verse that says why this page is open.
+const ORIGIN_LINE = {
+  search: (st) => `حالِ تو: <q>${esc(st.query)}</q>`,
+  marks: () => 'از بیت‌های نشان‌شده',
+  link: () => 'این بیت را برای تو فرستاده‌اند',
+  daily: () => 'بیتِ امروز',
+};
+
 function verseActions(verse) {
   const marked = isMarked(verse);
   return `<div class="acts">
     <button class="btn ${marked ? 'btn--on' : ''}" type="button" data-act="mark" aria-pressed="${marked}">${icon(marked ? 'i-mark-on' : 'i-mark')}${marked ? 'نشان شد' : 'نشان کن'}</button>
     <button class="btn" type="button" data-act="share">${icon('i-share')}کارت</button>
+    <button class="btn" type="button" data-act="link">${icon('i-link')}لینک</button>
     <button class="btn" type="button" data-act="poem">${icon('i-book')}همهٔ شعر</button>
   </div>`;
 }
@@ -241,13 +340,15 @@ function resultView() {
       <button class="btn" type="button" data-act="next" ${state.index === count - 1 ? 'disabled' : ''}>بعدی${icon('i-next')}</button>
     </nav>`;
   sideBody.innerHTML = `
-    ${state.query ? `<p class="query-echo">حالِ تو: <q>${esc(state.query)}</q></p>` : '<p class="query-echo">از بیت‌های نشان‌شده</p>'}
-    ${state.query && !state.byMeaning ? '<p class="note">این بیت‌ها با <b>کلمه‌های تو</b> پیدا شدند. هوش مصنوعی که آماده شد، دوباره بگرد تا با <b>معنی</b> بگردد.</p>' : ''}
+    <p class="query-echo">${ORIGIN_LINE[state.origin](state)}</p>
+    ${state.origin === 'search' && !state.byMeaning ? '<p class="note">این بیت‌ها با <b>کلمه‌های تو</b> پیدا شدند. هوش مصنوعی که آماده شد، دوباره بگرد تا با <b>معنی</b> بگردد.</p>' : ''}
     ${meaningBlock(verse)}
     <p class="muted">از <b>${esc(verse.book)}</b>، ${esc(verse.title)} ·
       <a href="${esc(verse.url)}" target="_blank" rel="noopener">متن کامل در گنجور</a></p>
     <div class="rule"></div>
-    ${verseActions(verse)}`;
+    ${verseActions(verse)}
+    ${state.origin === 'link' || state.origin === 'daily'
+      ? `<div class="acts"><button class="btn btn--main" type="button" data-act="home">حالِ دلِ خودت را بنویس</button></div>` : ''}`;
 }
 
 function niyatView() {
@@ -321,7 +422,7 @@ function marksView() {
     <p class="muted" style="text-align:center">روی هر بیت بزن تا صفحه‌اش باز شود.</p>`;
 }
 
-const VIEWS = { search: searchView, results: resultView, niyat: niyatView, poem: poemView, marks: marksView };
+const VIEWS = { search: searchView, results: resultView, niyat: niyatView, poem: poemView, marks: marksView, about: aboutView };
 
 function render() {
   book.dataset.view = state.view;
@@ -592,6 +693,7 @@ async function runSearch(text) {
     }
     await turn('next', () => {
       state.byMeaning = byMeaning;
+      state.origin = 'search';
       state.query = query;
       state.results = results;
       state.index = 0;
@@ -655,6 +757,57 @@ function step(delta) {
   turn(delta > 0 ? 'next' : 'prev', () => { state.index = target; });
 }
 
+// ---------- a link that opens the book on one verse ----------
+
+// The address ends in #b=<poet file>.<row>, for example #b=hafez.1204.
+const verseLink = (verse) => `${location.origin}${location.pathname}#b=${verse.collection}.${verse.row}`;
+
+async function shareLink(verse) {
+  const url = verseLink(verse);
+  const text = `${verse.m1}\n${verse.m2}\n— ${verse.poet}`;
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: 'بیت‌یاب', text, url });
+      return;
+    } catch (error) {
+      if (error.name === 'AbortError') return; // the reader closed the sheet
+    }
+  }
+  try {
+    await navigator.clipboard.writeText(url);
+    say('لینک این بیت کپی شد');
+  } catch {
+    say(url);
+  }
+}
+
+// Somebody opened a shared link: put that verse on the pages, behind the
+// closed cover, so the book opens on it.
+async function openSharedVerse() {
+  const match = /^#b=([a-z-]+)\.(\d+)$/.exec(location.hash);
+  if (!match) return;
+  try {
+    const { verse } = await ask({ type: 'verse', collection: match[1], row: Number(match[2]) });
+    if (!verse || state.view !== 'search') return;
+    const show = () => {
+      state.origin = 'link';
+      state.query = '';
+      state.results = [verse];
+      state.index = 0;
+      state.view = 'results';
+    };
+    if (book.dataset.state === 'open') return turn('next', show);
+    show();
+    render();
+    const gift = $('#cover-gift');
+    if (gift) gift.hidden = false;
+  } catch { /* a broken link just opens the first page */ }
+}
+
+function openAbout() {
+  if (state.view !== 'about') turn('next', () => { state.view = 'about'; });
+}
+
 async function share(verse) {
   say('در حال ساختن کارت…');
   try {
@@ -677,6 +830,7 @@ spread.addEventListener('click', (event) => {
   if (markButton) {
     const verse = marks[Number(markButton.dataset.mark)];
     return turn('next', () => {
+      state.origin = 'marks';
       state.query = '';
       state.results = [verse];
       state.index = 0;
@@ -701,6 +855,18 @@ spread.addEventListener('click', (event) => {
       return;
     }
     case 'share': return share(verse);
+    case 'link': return shareLink(verse);
+    case 'about': return openAbout();
+    case 'install': return install();
+    case 'daily-open':
+      if (!state.daily) return;
+      return turn('next', () => {
+        state.origin = 'daily';
+        state.query = '';
+        state.results = [state.daily];
+        state.index = 0;
+        state.view = 'results';
+      });
     case 'share-first': {
       const first = state.poem.lines[0];
       return share({ ...state.poem, m1: first.m1, m2: first.m2 });
@@ -769,6 +935,8 @@ spread.addEventListener('touchend', (event) => {
 
 $('#open-btn').addEventListener('click', () => openBook());
 $('#tool-home').addEventListener('click', goHome);
+// (?.: a visitor may still hold yesterday's copy of the page without this button)
+$('#tool-about')?.addEventListener('click', openAbout);
 $('#tool-marks').addEventListener('click', () => {
   if (state.view !== 'marks') turn('next', () => { state.view = 'marks'; });
 });
@@ -824,6 +992,7 @@ showMarkCount();
 render();
 showProgress();
 worker.postMessage({ type: 'init' });
+openSharedVerse();
 
 // On the live site always; on a local test server only with ?sw=1, so that
 // edits show up at once while developing.

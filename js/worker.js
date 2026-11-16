@@ -5,6 +5,8 @@
 //                {type:'search', id, text, top}
 //                {type:'poem', id, collection, poem}
 //                {type:'randomPoem', id, collection}
+//                {type:'verse', id, collection, row}  one couplet (a shared link)
+//                {type:'daily', id, day}              the verse of the day
 // Messages out:  {type:'poems', loaded, total}        a poet's text is here:
 //                                                     reading, fal and word
 //                                                     search work for it
@@ -84,6 +86,16 @@ function reportProgress(force) {
 
 // ---- loading -------------------------------------------------------------
 
+// Somebody may ask for a poet whose text is still on the way (a shared
+// link opens before everything is loaded): the answer waits for it.
+const textWaiters = [];
+function whenTextIsHere(name) {
+  const here = collections.find((c) => c.info.name === name);
+  if (here) return Promise.resolve(here);
+  if (manifest && !manifest.collections.some((c) => c.name === name)) return Promise.resolve(null);
+  return new Promise((resolve) => textWaiters.push({ name, resolve }));
+}
+
 // A poet arrives in two parts. The text (small) comes first: with it the
 // visitor can already read, take a fal and search by words. The vectors
 // (big) are only needed for the search by meaning.
@@ -93,7 +105,9 @@ async function loadText(info, counted) {
   text.couplets.forEach((couplet, row) => {
     if (!firstRow.has(couplet[0])) firstRow.set(couplet[0], row);
   });
-  collections.push({ info, vectors: null, poems: text.poems, couplets: text.couplets, firstRow, plain: null });
+  const collection = { info, vectors: null, poems: text.poems, couplets: text.couplets, firstRow, plain: null };
+  collections.push(collection);
+  textWaiters.filter((w) => w.name === info.name).forEach((w) => w.resolve(collection));
   postMessage({ type: 'poems', name: info.name, loaded: collections.length, total: manifest.collections.length });
 }
 
@@ -103,8 +117,13 @@ async function loadVectors(info, counted) {
   collection.vectors = new Int8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength);
 }
 
+// Resolved when the list of poets is known.
+let manifestIsHere;
+const ready = new Promise((resolve) => { manifestIsHere = resolve; });
+
 async function init() {
   manifest = await (await fetch(new URL('manifest.json', DATA_DIR))).json();
+  manifestIsHere();
   const [first, ...rest] = manifest.collections;
   // The bar on the cover covers everything needed for the first search by meaning.
   totalBytes = manifest.engineBytes + manifest.modelBytes + manifest.tokenizerBytes + first.bytes;
@@ -287,6 +306,29 @@ function readPoem(name, poem) {
   };
 }
 
+// One couplet by its place in a poet's file: what a shared link points at.
+async function readVerse(name, row) {
+  const collection = await whenTextIsHere(name);
+  if (!collection || !Number.isInteger(row) || row < 0 || row >= collection.couplets.length) return null;
+  return describe(collection, row, 1);
+}
+
+// The verse of the day: the same Hafez couplet for everybody on one day.
+// Only couplets of a comfortable length are in the draw.
+let dailyRows = null;
+async function dailyVerse(day) {
+  const collection = await whenTextIsHere(manifest.collections[0].name);
+  if (!dailyRows) {
+    dailyRows = [];
+    collection.couplets.forEach((c, row) => {
+      if (c[3] && c[1].length >= 16 && c[1].length <= 34 && c[2].length <= 34) dailyRows.push(row);
+    });
+  }
+  // a fixed shuffle of the days, so neighbours in the book are not neighbours in time
+  const turn = Math.imul(day, 2654435761) >>> 0;
+  return describe(collection, dailyRows[turn % dailyRows.length], 1);
+}
+
 // ---- messages ------------------------------------------------------------
 
 self.onmessage = async (event) => {
@@ -303,6 +345,12 @@ self.onmessage = async (event) => {
       postMessage({ type: 'results', id: message.id, results, byMeaning, ms: performance.now() - started });
     } else if (message.type === 'poem' || message.type === 'randomPoem') {
       postMessage({ type: 'poem', id: message.id, poem: readPoem(message.collection, message.poem) });
+    } else if (message.type === 'verse') {
+      await ready;
+      postMessage({ type: 'verse', id: message.id, verse: await readVerse(message.collection, message.row) });
+    } else if (message.type === 'daily') {
+      await ready;
+      postMessage({ type: 'verse', id: message.id, verse: await dailyVerse(message.day) });
     } else if (message.type === 'embed') {
       // Used by the tests to compare the browser's numbers with Python's.
       const vector = await embed('query: ' + normalize(message.text));

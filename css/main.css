@@ -427,6 +427,15 @@ svg.defs { position: absolute; }
 }
 .open-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 0 rgba(90, 60, 20, .45), inset 0 1px 0 rgba(255, 245, 210, .7); }
 .open-btn:active { filter: brightness(.95); box-shadow: 0 1px 0 rgba(90, 60, 20, .5); }
+.cover__gift {
+  margin: 0;
+  padding: 2px 16px;
+  border-radius: 999px;
+  background: rgba(31, 63, 122, .9);
+  color: #f8efd8;
+  font-size: .84rem;
+  font-weight: 600;
+}
 .cover__load {
   margin: 0;
   min-height: 1.6em;
@@ -702,6 +711,49 @@ svg.defs { position: absolute; }
   font-size: .92rem;
   line-height: 2;
 }
+/* verse of the day: the whole card is one button */
+.daily {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  margin: 4px 0;
+  padding: 12px 10px 10px;
+  border: 1px solid rgba(184, 137, 43, .6);
+  border-radius: 10px;
+  background: rgba(217, 182, 90, .1);
+  text-align: center;
+  transition: background .2s;
+}
+.daily:hover { background: rgba(217, 182, 90, .22); }
+.daily__verse { font-family: var(--verse); font-size: clamp(1.05rem, .9rem + .6vw, 1.35rem); line-height: 2.5; color: var(--ink); }
+.daily__src { font-size: .78rem; color: var(--ink-soft); }
+.daily__more { display: inline-flex; align-items: center; gap: 4px; font-size: .82rem; font-weight: 700; color: var(--lapis); }
+.daily__more svg { width: 16px; height: 16px; }
+.textlink {
+  padding: 4px 2px;
+  border: 0;
+  background: none;
+  color: var(--lapis);
+  font-size: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.facts { margin: 4px 0 8px; padding: 0; list-style: none; display: grid; gap: 8px; }
+.facts li { font-size: .86rem; line-height: 1.9; padding-right: 12px; border-right: 2px solid rgba(184, 137, 43, .6); }
+.facts b { color: var(--rose); }
+.install {
+  flex: none;
+  margin: 4px 0;
+  padding: 8px 12px 10px;
+  border-radius: 10px;
+  background: rgba(31, 63, 122, .07);
+  text-align: center;
+}
+.install .muted { margin: 2px 0 6px; }
+
 /* the mood of a fal: a small plate with its colour */
 .omen {
   --tone: var(--gold);
@@ -916,6 +968,8 @@ svg.defs { position: absolute; }
   .poem--page .m1 { padding-left: 0; }
   .poem--page .m2 { padding-right: 0; }
   .omen__line { font-size: .86rem; }
+  .daily__verse { font-size: .98rem; }
+  .facts li { font-size: .8rem; }
   .verse p { font-size: 1.16rem; }
   .verse--long p { font-size: 1rem; }
   .verse .m1 { padding-left: 0; }
