@@ -7,9 +7,14 @@ and throw the rest away (vocabulary pruning).
 
 What is kept:
   - the special pieces (<s>, <pad>, </s>, <unk>, <mask>)
-  - every piece written only in Arabic/Persian script
-  - digits, punctuation and symbols
-  - short Latin pieces (so a stray English word does not become <unk>)
+  - every piece written only with the letters cleaned Persian text can
+    hold. tools/normalize.py turns Arabic letter forms into Persian ones
+    and removes vowel marks before the model reads anything, so a piece
+    with an Arabic "ي" or "ك", an Urdu or Pashto letter or a vowel mark can
+    never be asked for. Those rows are dead weight (about 6,000 of them).
+  - digits and everyday punctuation
+  - Latin pieces of one or two letters (a stray English word is then split
+    into small pieces and does not become <unk>)
   - every piece that really appears in the poems and their summaries
   - the pieces of the words "query:" and "passage:" that e5 models need
 
@@ -40,9 +45,35 @@ SRC = ROOT / "models" / "src"
 OUT = ROOT / "models" / "e5-small-fa"
 TABLE = "embeddings.word_embeddings.weight_quantized"
 
-PERSIAN = re.compile(r"^▁?[؀-ۿݐ-ݿﭐ-﷿ﹰ-\ufeff\u200c\u200d]+$")
-NO_LETTERS = re.compile(r"^▁?[^\w]*[\d۰-۹٠-٩]*[^\w]*$")
-SHORT_LATIN = re.compile(r"^▁?[A-Za-z]{1,3}$")
+# The letters that are left after normalize(): no ي ك ة ى ئ أ إ ؤ ۀ, no marks.
+PERSIAN = re.compile("^▁?[ءآابپتثجچحخدذرزژسشصضطظعغفقکگلمنوهی\u200c]+$")
+NO_LETTERS = re.compile("^▁?[0-9۰-۹٠-٩ -/:-@\\[-`{-~،؛؟«»…–—٪٫٬]*$")
+SHORT_LATIN = re.compile(r"^▁?[A-Za-z]{1,2}$")
+
+# Everyday sentences that are in no poem. The pruned tokenizer must split
+# them exactly like the full one (checked at the end).
+MODERN = [
+    "امروز توی مترو خیلی خسته بودم و دلم می‌خواست فقط بخوابم",
+    "کنکور دارم و استرس دارم که قبول نشوم",
+    "با بهترین دوستم دعوا کردم و نمی‌دانم چطور آشتی کنم",
+    "پدرم بیمارستان بستری شده و خیلی نگرانش هستم",
+    "می‌خواهم مهاجرت کنم ولی دلم برای خانواده‌ام تنگ می‌شود",
+    "حقوقم کم است و اجاره‌خانه هر ماه گران‌تر می‌شود",
+    "عاشق همکلاسی‌ام شده‌ام اما خجالت می‌کشم به او بگویم",
+    "تولد مادرم است و می‌خواهم یک پیام قشنگ برایش بفرستم",
+    "از شبکه‌های اجتماعی و گوشی موبایل خسته شده‌ام",
+    "تیم فوتبال ما باخت و حالم گرفته است",
+    "کسب‌وکارم ورشکست شد و باید از صفر شروع کنم",
+    "دکتر گفت باید ورزش کنم و سیگار را کنار بگذارم",
+    "احساس می‌کنم هیچ‌کس حرف من را نمی‌فهمد",
+    "بعد از سال‌ها دوست قدیمی‌ام را دیدم و خیلی خوشحال شدم",
+    "از دروغ و ریاکاری آدم‌ها دلم گرفته",
+    "فردا مصاحبهٔ کاری دارم و امیدوارم موفق شوم",
+    "زندگی خیلی سریع می‌گذرد و من هنوز به آرزوهایم نرسیده‌ام",
+    "بچه‌ام تازه به دنیا آمده و از خوشحالی گریه می‌کنم",
+    "دلم یک سفر به شمال و صدای دریا می‌خواهد",
+    "خدایا شکرت که امروز هم سالم هستم",
+]
 
 
 def corpus_texts() -> list[str]:
@@ -55,6 +86,10 @@ def corpus_texts() -> list[str]:
                 texts.append("passage: " + normalize(c["summary"]))
     texts += ["query: " + normalize(q) for q in QUERIES]
     return texts
+
+
+def modern_texts() -> list[str]:
+    return ["query: " + normalize(q) for q in MODERN]
 
 
 def choose_ids(vocab: list[list], tokenizer: Tokenizer, texts: list[str]) -> list[int]:
@@ -123,6 +158,15 @@ def main() -> None:
         if a.tokens != b.tokens or [new_id[i] for i in a.ids] != b.ids:
             different += 1
     print(f"texts split differently: {different} of {len(sample)}")
+
+    # sentences that were NOT used to choose the pieces
+    unseen = modern_texts()
+    missing = 0
+    for a, b in zip(old_tokenizer.encode_batch(unseen), new_tokenizer.encode_batch(unseen)):
+        if a.tokens != b.tokens:
+            missing += 1
+            print("   split differently:", a.tokens, "->", b.tokens)
+    print(f"unseen modern sentences split differently: {missing} of {len(unseen)}")
 
     full = Embedder(SRC / "onnx" / "model_quantized.onnx", SRC / "tokenizer.json")
     small_model = Embedder(OUT / "onnx" / "model_quantized.onnx", OUT / "tokenizer.json")

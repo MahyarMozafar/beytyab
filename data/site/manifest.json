@@ -1,8 +1,8 @@
 {
  "dim": 384,
  "scale": 0.1957325041294098,
- "modelBytes": 34109657,
- "tokenizerBytes": 1303253,
+ "modelBytes": 27563992,
+ "tokenizerBytes": 765443,
  "engineBytes": 14264838,
  "collections": [
   {

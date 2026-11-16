@@ -5,7 +5,7 @@
 // The page itself (HTML, CSS, JS) is answered from the cache too, but a
 // fresh copy is fetched in the background for the next visit.
 
-const VERSION = 'beytyab-v1';
+const VERSION = 'beytyab-v2'; // v2: smaller model (13,723 word pieces)
 const HEAVY = /\/(models|data|fonts|js\/vendor)\//;
 
 self.addEventListener('install', () => self.skipWaiting());
