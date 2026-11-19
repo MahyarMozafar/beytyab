@@ -511,27 +511,6 @@ function turn(direction, change) {
   change();
   render();
 
-  // Phones: no 3D leaf. The old pages lie over the new ones and fade away
-  // with a small slide. It is quick and stays smooth on a weak phone.
-  if (!isWide()) {
-    const veil = element('veil', element('hold', oldMain), element('hold hold--left', oldSide));
-    spread.append(veil);
-    return new Promise((resolve) => {
-      gsap.to(veil, {
-        opacity: 0,
-        x: direction === 'next' ? 18 : -18,
-        duration: 0.34,
-        ease: 'power1.out',
-        onComplete() {
-          veil.remove();
-          state.turning = false;
-          writeInk();
-          resolve();
-        },
-      });
-    });
-  }
-
   const front = element('leaf__face leaf__face--front');
   const back = element('leaf__face leaf__face--back');
   const shade = element('leaf__shade');
@@ -602,8 +581,6 @@ function poemPage() {
 // then a few loose pages follow. The last one carries the real right page.
 // Closing the book plays the same timeline backwards.
 function openingTimeline(loose) {
-  const light = !isWide(); // phones: one loose page and no shadow on the desk
-  if (light) loose = 1;
   const boards = $('.boards', spread);
   const cast = element('cast');
   const leaves = [];
@@ -618,8 +595,7 @@ function openingTimeline(loose) {
   // the last page of the block that lifts with the cover
   $('.cover__face--back', cover).replaceChildren(poemPage());
   // lowest in the pile first, so that the top one is painted last
-  if (!light) spread.append(cast);
-  spread.append(...leaves.slice().reverse());
+  spread.append(cast, ...leaves.slice().reverse());
 
   const zoom = Number(getComputedStyle(book).getPropertyValue('--zc')) || 1;
   const timeline = gsap.timeline({ paused: true });
@@ -643,10 +619,8 @@ function openingTimeline(loose) {
   // meanwhile the book moves so that the spine ends in the middle of the desk
   timeline.fromTo(book, { '--shift': '25%', '--zoom': zoom }, { '--shift': '0%', '--zoom': 1, duration: 1.75, ease: 'sine.inOut' }, 0.2);
   // its shadow on the desk, then the leather under it
-  if (!light) {
-    timeline.fromTo(cast, { opacity: 0 }, { opacity: 1, duration: 0.7, ease: 'sine.in' }, 0.9);
-    timeline.to(cast, { opacity: 0, duration: 0.35, ease: 'sine.out' }, 1.6);
-  }
+  timeline.fromTo(cast, { opacity: 0 }, { opacity: 1, duration: 0.7, ease: 'sine.in' }, 0.9);
+  timeline.to(cast, { opacity: 0, duration: 0.35, ease: 'sine.out' }, 1.6);
   timeline.fromTo(boards, { '--k': 1 }, { '--k': 0, duration: 0.4, ease: 'sine.inOut' }, 1.55);
   // 3. the loose pages follow, one after another
   leaves.forEach((leaf, index) => {
@@ -685,8 +659,7 @@ function openBook({ quick = false } = {}) {
       writeInk();
       resolve();
     });
-    // phones get a shorter opening
-    timeline.timeScale(quick ? 1.7 : !isWide() ? 1.45 : seen ? 1.25 : 1).play(0);
+    timeline.timeScale(quick ? 1.7 : seen ? 1.25 : 1).play(0);
   });
 }
 

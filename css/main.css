@@ -970,8 +970,6 @@ svg.defs { position: absolute; }
   }
   .medallion, .cover__lachak, .cover__trace { filter: none; }
   .page__body--still { -webkit-mask-image: none; mask-image: none; }
-  /* a page change on a phone: the old pages fade away over the new ones */
-  .veil { position: absolute; inset: 0; z-index: 4; pointer-events: none; }
   /* The closed cover fills the screen and zooms out while it opens, so the
      small print waits until the book lies open, then shows below it. */
   .credit { transition: opacity .4s ease; }
